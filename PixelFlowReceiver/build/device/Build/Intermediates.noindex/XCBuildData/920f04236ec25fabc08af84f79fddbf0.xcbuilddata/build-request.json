@@ -1,0 +1,72 @@
+{
+  "buildCommand" : {
+    "command" : "build",
+    "skipDependencies" : false,
+    "style" : "buildOnly"
+  },
+  "configuredTargets" : [
+    {
+      "guid" : "70d627185a865e510f9d4f8501503db985808af1691e64d614bd26112a0a6c19"
+    }
+  ],
+  "containerPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/PixelFlowReceiver.xcodeproj",
+  "continueBuildingAfterErrors" : false,
+  "dependencyScope" : "workspace",
+  "enableIndexBuildArena" : false,
+  "hideShellScriptEnvironment" : false,
+  "parameters" : {
+    "action" : "build",
+    "activeArchitecture" : "arm64",
+    "activeRunDestination" : {
+      "disableOnlyActiveArch" : false,
+      "hostTargetedPlatform" : null,
+      "platform" : "iphoneos",
+      "sdk" : "iphoneos27.1",
+      "sdkVariant" : "iphoneos",
+      "supportedArchitectures" : [
+        "arm64e",
+        "arm64"
+      ],
+      "targetArchitecture" : "arm64"
+    },
+    "arenaInfo" : {
+      "buildIntermediatesPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/build/device/Build/Intermediates.noindex",
+      "buildProductsPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/build/device/Build/Products",
+      "derivedDataPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/build/device",
+      "indexDataStoreFolderPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/build/device/Index.noindex/DataStore",
+      "indexEnableDataStore" : true,
+      "indexPCHPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/build/device/Index.noindex/PrecompiledHeaders",
+      "pchPath" : "/Users/chaofan/Public/Workspace/PixelFlow/PixelFlowReceiver/build/device/Build/Intermediates.noindex/PrecompiledHeaders"
+    },
+    "configurationName" : "Release",
+    "overrides" : {
+      "commandLine" : {
+        "table" : {
+          "CODE_SIGN_STYLE" : "Automatic",
+          "DEVELOPMENT_TEAM" : "HYCYFDH9W3"
+        }
+      },
+      "synthesized" : {
+        "table" : {
+          "ACTION" : "build",
+          "ASSETCATALOG_FILTER_FOR_DEVICE_MODEL" : "iPhone18,4",
+          "ASSETCATALOG_FILTER_FOR_DEVICE_OS_VERSION" : "27.0.1",
+          "ASSETCATALOG_FILTER_FOR_THINNING_DEVICE_CONFIGURATION" : "iPhone18,4",
+          "BUILD_ACTIVE_RESOURCES_ONLY" : "YES",
+          "ENABLE_PREVIEWS" : "NO",
+          "ENABLE_XOJIT_PREVIEWS" : "YES",
+          "TARGET_DEVICE_IDENTIFIER" : "00008150-001A25A81AEA401C",
+          "TARGET_DEVICE_MODEL" : "iPhone18,4",
+          "TARGET_DEVICE_OS_VERSION" : "27.0.1",
+          "TARGET_DEVICE_PLATFORM_NAME" : "iphoneos"
+        }
+      }
+    }
+  },
+  "schemeCommand" : "launch",
+  "showNonLoggedProgress" : true,
+  "useDryRun" : false,
+  "useImplicitDependencies" : true,
+  "useLegacyBuildLocations" : false,
+  "useParallelTargets" : true
+}

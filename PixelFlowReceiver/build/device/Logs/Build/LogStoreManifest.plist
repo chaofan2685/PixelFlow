@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>logFormatVersion</key>
+	<integer>13</integer>
+	<key>logs</key>
+	<dict>
+		<key>732BD81B-4E3E-431A-966C-B902B807F38B</key>
+		<dict>
+			<key>className</key>
+			<string>IDECommandLineBuildLog</string>
+			<key>documentTypeString</key>
+			<string>&lt;nil&gt;</string>
+			<key>domainType</key>
+			<string>Xcode.IDEActivityLogDomainType.BuildLog</string>
+			<key>fileName</key>
+			<string>732BD81B-4E3E-431A-966C-B902B807F38B.xcactivitylog</string>
+			<key>hasPrimaryLog</key>
+			<true/>
+			<key>primaryObservable</key>
+			<dict>
+				<key>highLevelStatus</key>
+				<string>E</string>
+				<key>totalNumberOfAnalyzerIssues</key>
+				<integer>0</integer>
+				<key>totalNumberOfErrors</key>
+				<integer>2</integer>
+				<key>totalNumberOfTestFailures</key>
+				<integer>0</integer>
+				<key>totalNumberOfWarnings</key>
+				<integer>0</integer>
+			</dict>
+			<key>schemeIdentifier-containerName</key>
+			<string>PixelFlowReceiver project</string>
+			<key>schemeIdentifier-schemeName</key>
+			<string>PixelFlowReceiver</string>
+			<key>schemeIdentifier-sharedScheme</key>
+			<integer>1</integer>
+			<key>signature</key>
+			<string>Building project PixelFlowReceiver with scheme PixelFlowReceiver and configuration Release</string>
+			<key>timeStartedRecording</key>
+			<real>814368770.47664702</real>
+			<key>timeStoppedRecording</key>
+			<real>814368772.952191</real>
+			<key>title</key>
+			<string>Building project PixelFlowReceiver with scheme PixelFlowReceiver and configuration Release</string>
+			<key>uniqueIdentifier</key>
+			<string>732BD81B-4E3E-431A-966C-B902B807F38B</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

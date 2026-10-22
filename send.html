@@ -1,446 +1,666 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>二维码切片传输工具</title>
-    <script src="qrcode.min.js"></script>
-    <style>
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            min-height: 100vh; 
-            background-color: #f5f5f7; 
-            margin: 0; 
-            padding: 15px; /* 缩小外边距 */
-            box-sizing: border-box; 
-        }
-        
-        /* 横向分栏主容器 - 紧凑化调整 */
-        .container { 
-            background: white; 
-            padding: 24px; /* 缩小内边距，释放横向空间 */
-            border-radius: 16px; 
-            box-shadow: 0 4px 24px rgba(0,0,0,0.06); 
-            display: flex; 
-            flex-direction: row; 
-            gap: 25px; /* 缩小左右间距 */
-            max-width: 920px; /* 缩减最大宽度适配低分屏 */
-            width: 100%; 
-            box-sizing: border-box; 
-            align-items: flex-start; 
-        }
-        
-        /* 左侧控制栏 */
-        .control-side { 
-            flex: 1; 
-            display: flex; 
-            flex-direction: column; 
-            min-width: 360px; /* 安全缩减最小宽度 */
-        }
-        
-        /* 右侧显示栏 */
-        .display-side { 
-            width: 450px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PixelFlow 发送端</title>
+<script src="qrcode.min.js"></script>
+<script src="sha256.js"></script>
+<style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex; align-items: center; justify-content: center;
+        min-height: 100vh; background-color: #f5f5f7; margin: 0; padding: 15px;
+        box-sizing: border-box;
+    }
+    .container {
+        background: white; padding: 24px; border-radius: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        display: flex; flex-direction: row; gap: 24px;
+        max-width: 1180px; width: 100%; box-sizing: border-box;
+        align-items: stretch;
+    }
+    .control-side { flex: 1 1 420px; display: flex; flex-direction: column; min-width: 0; }
+    .display-side { flex: 0 0 auto; width: clamp(420px, 50vw, 660px); max-width: 100%; display: flex; flex-direction: column; align-items: center; }
 
-        h2 { margin-top: 0; margin-bottom: 15px; color: #1d1d1f; text-align: left; font-size: 20px; }
-        
-        /* 模式切换 */
-        .tabs { display: flex; background: #e3e3e6; padding: 2px; border-radius: 8px; margin-bottom: 15px; }
-        .tab { flex: 1; padding: 8px; font-size: 13px; font-weight: 600; color: #636366; cursor: pointer; border-radius: 6px; transition: all 0.2s; text-align: center; }
-        .tab.active { background: white; color: #000; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .panel-content { display: block; margin-bottom: 12px; }
-        .hidden { display: none !important; }
+    h2 { margin-top: 0; margin-bottom: 14px; color: #1d1d1f; text-align: left; font-size: 20px; }
 
-        /* 输入控件 */
-        #fileInput { font-size: 13px; width: 100%; padding: 10px; background: #f5f5f7; border-radius: 8px; box-sizing: border-box; border: 1px dashed #d2d2d7; }
-        #textInput { width: 100%; height: 95px; padding: 10px; border: 1px solid #d2d2d7; border-radius: 8px; resize: none; font-size: 13px; box-sizing: border-box; font-family: inherit; }
-        #textInput:focus { outline: none; border-color: #0071e3; }
-        
-        /* 参数调节面板 */
-        .panel { background: #f5f5f7; padding: 12px 15px; border-radius: 10px; text-align: left; margin-bottom: 15px; font-size: 13px; }
-        .control-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        .control-row:last-child { margin-bottom: 0; }
-        .control-row label { font-weight: 500; color: #333; flex: 0.8; }
-        .control-row input[type="range"] { flex: 1.5; margin-left: 10px; cursor: pointer; }
-        .value-span { min-width: 65px; text-align: right; font-variant-numeric: tabular-nums; color: #0071e3; font-weight: bold; }
+    .tabs { display: flex; background: #e3e3e6; padding: 2px; border-radius: 8px; margin-bottom: 14px; }
+    .tab { flex: 1; padding: 8px; font-size: 13px; font-weight: 600; color: #636366; cursor: pointer; border-radius: 6px; transition: all 0.15s; text-align: center; }
+    .tab.active { background: white; color: #000; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .panel-content { display: block; margin-bottom: 12px; }
+    .hidden { display: none !important; }
 
-        /* 【核心重构：4列等长绝对单行网格】 */
-        .btn-group { 
-            display: grid; 
-            grid-template-columns: repeat(4, 1fr); /* 严格均分4列 */
-            gap: 6px; 
-            margin-top: 10px; 
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .btn { 
-            background: #0071e3; 
-            color: white; 
-            border: none; 
-            padding: 10px 0; /* 左右内边距设为0，由网格宽度自动伸缩 */
-            border-radius: 8px; 
-            font-size: 13px; /* 略微缩小字号确保低分辨下文字完全容纳 */
-            cursor: pointer; 
-            transition: background 0.2s; 
-            font-weight: 500; 
-            text-align: center;
-            white-space: nowrap; /* 严禁换行 */
-            overflow: hidden;    /* 防止极端情况溢出 */
-            text-overflow: ellipsis;
-        }
-        .btn:hover { background: #005bb5; }
-        .btn:disabled { background: #e5e5ea; color: #aeaeae; cursor: not-allowed; }
-        .btn-first { background: #5856d6; }
-        .btn-first:hover { background: #4341b7; }
-        .btn-play { background: #34c759; }
-        .btn-play:hover { background: #28a745; }
-        .btn-pause { background: #ff9500; }
-        .btn-pause:hover { background: #e08500; }
+    #fileInput { font-size: 13px; width: 100%; padding: 10px; background: #f5f5f7; border-radius: 8px; box-sizing: border-box; border: 1px dashed #d2d2d7; cursor: pointer; }
+    #textInput { width: 100%; height: 92px; padding: 10px; border: 1px solid #d2d2d7; border-radius: 8px; resize: vertical; font-size: 13px; box-sizing: border-box; font-family: inherit; }
+    #textInput:focus { outline: none; border-color: #0071e3; }
 
-        /* 可视化分片点控网格 */
-        .grid-title { font-size: 13px; font-weight: 600; color: #1d1d1f; margin-top: 15px; margin-bottom: 8px; text-align: left; }
-        .chunks-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); 
-            gap: 5px; 
-            max-height: 110px; 
-            overflow-y: auto; 
-            background: #f5f5f7; 
-            padding: 8px; 
-            border-radius: 8px; 
-            box-sizing: border-box;
-            border: 1px solid #e5e5e7;
-        }
-        .chunk-dot { 
-            aspect-ratio: 1; 
-            background: #e5e5ea; 
-            border-radius: 5px; 
-            font-size: 11px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            color: #636366; 
-            cursor: pointer; 
-            transition: all 0.15s ease; 
-            font-weight: 600; 
-            user-select: none; 
-        }
-        .chunk-dot:hover { background: #d1d1d6; color: #000; }
-        .chunk-dot.active { background: #0071e3; color: white; box-shadow: 0 2px 6px rgba(0,113,227,0.4); transform: scale(1.05); }
-        .chunk-dot.meta-dot { background: #5856d6; color: white; }
-        .chunk-dot.meta-dot.active { background: #4341b7; box-shadow: 0 2px 6px rgba(88,86,214,0.4); }
+    .panel { background: #f5f5f7; padding: 12px 15px; border-radius: 10px; text-align: left; margin-bottom: 14px; font-size: 13px; }
+    .control-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 10px; }
+    .control-row:last-child { margin-bottom: 0; }
+    .control-row label { font-weight: 500; color: #333; flex: 0 0 84px; white-space: nowrap; }
+    .control-row input[type="range"] { flex: 1 1 auto; min-width: 60px; cursor: pointer; }
+    .value-span { flex: 0 0 62px; text-align: right; font-variant-numeric: tabular-nums; color: #0071e3; font-weight: 600; }
 
-        /* 右侧二维码安全视窗 */
-        .qr-box { 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            width: 450px; 
-            height: 450px; 
-            background: #fafafa; 
-            border: 1px solid #e5e5e7; 
-            border-radius: 12px; 
-            overflow: hidden; 
-            margin-bottom: 15px; 
-        }
-        
-        .info { width: 100%; text-align: center; color: #1d1d1f; font-size: 13px; line-height: 1.5; word-break: break-all; min-height: 44px; }
-        .error { color: #ff3b30; font-weight: bold; background: #ffebeb; padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
-        .hint { font-size: 12px; color: #8e8e93; margin-top: 10px; line-height: 1.4; }
-    </style>
+    .seg { display: flex; flex: 1 1 auto; background: #e3e3e6; padding: 2px; border-radius: 8px; gap: 2px; }
+    .seg-btn { flex: 1; border: none; background: transparent; padding: 6px 4px; font-size: 12px; font-weight: 600; color: #636366; border-radius: 6px; cursor: pointer; font-family: inherit; }
+    .seg-btn.active { background: #0071e3; color: white; }
+
+    .btn-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; width: 100%; }
+    .btn {
+        background: #0071e3; color: white; border: none; padding: 10px 0; border-radius: 8px;
+        font-size: 13px; cursor: pointer; transition: background 0.15s; font-weight: 500;
+        text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        font-family: inherit;
+    }
+    .btn:hover:not(:disabled) { background: #005bb5; }
+    .btn:disabled { background: #e5e5ea; color: #aeaeae; cursor: not-allowed; }
+    .btn-first { background: #5856d6; }
+    .btn-first:hover:not(:disabled) { background: #4341b7; }
+    .btn-play { background: #34c759; }
+    .btn-play:hover:not(:disabled) { background: #28a745; }
+    .btn-pause { background: #ff9500; }
+    .btn-pause:hover:not(:disabled) { background: #e08500; }
+
+    .grid-title { font-size: 13px; font-weight: 600; color: #1d1d1f; margin-top: 14px; margin-bottom: 8px; text-align: left; }
+    .chunks-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(28px, 1fr)); grid-auto-rows: 29px; gap: 4px;
+        align-content: start;
+        flex: 1 1 0; min-height: 104px; max-height: none;
+        overflow-y: auto; background: #f5f5f7; padding: 8px;
+        border-radius: 8px; box-sizing: border-box; border: 1px solid #e5e5e7;
+    }
+    .chunk-dot {
+        aspect-ratio: 1; background: #e5e5ea; border-radius: 4px; font-size: 10px;
+        display: flex; align-items: center; justify-content: center; color: #636366;
+        cursor: pointer; transition: all 0.12s ease; font-weight: 600; user-select: none;
+        overflow: hidden;
+    }
+    .chunk-dot:hover { background: #d1d1d6; color: #000; }
+    .chunk-dot.active { background: #0071e3; color: white; box-shadow: 0 2px 6px rgba(0,113,227,0.35); }
+    .chunk-dot.meta-dot { background: #ecebfb; color: #5856d6; box-shadow: inset 0 0 0 1px #cbc9f0; }
+    .chunk-dot.meta-dot.active { background: #5856d6; color: white; box-shadow: 0 2px 6px rgba(88,86,214,0.35); }
+
+    .grid-box {
+        width: 100%; aspect-ratio: 1 / 1; background: #fff;
+        border: 1px solid #e5e5e7; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden; margin-bottom: 12px;
+    }
+    .grid-box canvas { display: block; }
+
+    .info { width: 100%; text-align: center; color: #1d1d1f; font-size: 13px; line-height: 1.55; word-break: break-all; min-height: 40px; }
+    .info strong { color: #0071e3; }
+    .error { color: #ff3b30; font-weight: 600; background: #ffebeb; padding: 8px 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
+    .warn { color: #b25000; background: #fff4e5; padding: 8px 10px; border-radius: 6px; }
+    .hint { font-size: 12px; color: #8e8e93; margin-top: 12px; line-height: 1.5; min-height: 40px; }
+
+    @media (max-width: 900px) {
+        .container { flex-direction: column; gap: 18px; padding: 18px; }
+        .control-side { flex: 1 1 auto; width: 100%; }
+        .display-side { width: 100%; }
+        .grid-box { max-width: 460px; margin-left: auto; margin-right: auto; }
+    }
+</style>
 </head>
 <body>
 
 <div class="container">
-    
     <div class="control-side">
-        <h2>二维码文件/文字传输系统</h2>
-        
+        <h2>PixelFlow 发送端</h2>
+
         <div class="tabs">
-            <div class="tab active" id="tabFile">文件传输模式</div>
-            <div class="tab" id="tabText">纯文字传输模式</div>
+            <div class="tab active" id="tabFile">文件传输</div>
+            <div class="tab" id="tabText">纯文字传输</div>
         </div>
 
         <div class="panel-content" id="filePanel">
             <input type="file" id="fileInput">
         </div>
         <div class="panel-content hidden" id="textPanel">
-            <textarea id="textInput" placeholder="请在此处输入或粘贴你想要传输的文本内容..."></textarea>
+            <textarea id="textInput" placeholder="在此输入或粘贴要传输的文本内容..."></textarea>
         </div>
-        
+
         <div class="panel">
             <div class="control-row">
-                <label for="chunkSizeSlider">每片数据量:</label>
-                <input type="range" id="chunkSizeSlider" min="100" max="1000" step="50" value="500">
-                <span class="value-span" id="chunkSizeVal">500 字</span>
+                <label>码阵规模</label>
+                <div class="seg" id="gridSeg">
+                    <button class="seg-btn" data-k="1">1×1</button>
+                    <button class="seg-btn active" data-k="4">2×2</button>
+                </div>
             </div>
             <div class="control-row">
-                <label for="qrSizeSlider">二维码大小:</label>
-                <input type="range" id="qrSizeSlider" min="150" max="450" step="10" value="400">
-                <span class="value-span" id="qrSizeVal">400 px</span>
+                <label for="chunkSizeSlider">每片数据量</label>
+                <input type="range" id="chunkSizeSlider" min="200" max="1200" step="50" value="700">
+                <span class="value-span" id="chunkSizeVal">700 B</span>
             </div>
             <div class="control-row">
-                <label for="speedSlider">自动播放间隔:</label>
-                <input type="range" id="speedSlider" min="100" max="2000" step="50" value="300">
-                <span class="value-span" id="speedVal">300 ms</span>
+                <label for="speedSlider">每步停留</label>
+                <input type="range" id="speedSlider" min="50" max="1200" step="50" value="200">
+                <span class="value-span" id="speedVal">200 ms</span>
             </div>
         </div>
 
         <div class="btn-group">
-            <button class="btn btn-first" id="firstBtn" disabled>⏮ 第一帧</button>
-            <button class="btn" id="prevBtn" disabled>◀ 上页</button>
+            <button class="btn btn-first" id="firstBtn" disabled>⏮ 首步</button>
+            <button class="btn" id="prevBtn" disabled>◀ 上一步</button>
             <button class="btn btn-play" id="playBtn" disabled>▶ 自动播放</button>
-            <button class="btn" id="nextBtn" disabled>下页 ▶</button>
+            <button class="btn" id="nextBtn" disabled>下一步 ▶</button>
         </div>
 
-        <div class="grid-title">数据分片网格 (支持鼠标直接点击补漏):</div>
+        <div class="grid-title">数据分片（点击可跳到该片所在步）</div>
         <div class="chunks-grid" id="chunksGrid"></div>
-        
+
         <div class="hint">
-            • <strong>网格说明：</strong>【M】代表控制准备帧，数字代表各数据切片。<br>
-            • <strong>手动补漏：</strong>看一眼手机上哪个数字还是灰色，直接在网格点击该数字即可。
+            • 左上角固定为 <strong>M</strong>（元信息码），每一步都重复播，手机中途对准也能直接同步。<br>
+            • 最后一步会用末尾几片把格子补满（同一个码重复出现），并多停一倍时间，不是出错。<br>
+            • 停留短于 150 ms 时手机可能来不及解出，缺片多就把它调回去。<br>
+            • 缺片时点数字补发；屏幕亮度拉满、避免反光。
         </div>
     </div>
-    
+
     <div class="display-side">
-        <div class="qr-box">
+        <div class="grid-box" id="gridBox">
             <canvas id="qrcode"></canvas>
         </div>
-        <div class="info" id="status">等候指令：请在左侧导入文件或建立文本</div>
+        <div class="info" id="status">等候指令：请导入文件或输入文本</div>
     </div>
-
 </div>
 
 <script>
-    let currentMode = 'file'; 
-    let rawBase64Str = ''; 
-    let chunks = [];
-    let currentIndex = 0;
-    let fileName = '';
-    let playbackTimer = null;
-    let isPlaying = false;
+(() => {
+'use strict';
 
-    const canvasElement = document.getElementById('qrcode');
-    const statusElement = document.getElementById('status');
-    const firstBtn = document.getElementById('firstBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const playBtn = document.getElementById('playBtn');
-    const chunksGrid = document.getElementById('chunksGrid');
-    
-    const tabFile = document.getElementById('tabFile');
-    const tabText = document.getElementById('tabText');
-    const filePanel = document.getElementById('filePanel');
-    const textPanel = document.getElementById('textPanel');
-    const textInput = document.getElementById('textInput');
-    const fileInput = document.getElementById('fileInput');
+/* ============================================================
+ *  PF2 传输协议
+ *  ------------------------------------------------------------
+ *  元信息帧:  PF2|M|<kind>|<total>|<chunkSize>|<b64len>|<sha256>|<grid>|<name>
+ *  数据帧:    PF2|D|<idx>|<payload>
+ *
+ *  kind      : 'f' 文件 / 't' 文本
+ *  total     : 数据分片总数
+ *  chunkSize : 每片字符数（接收端用于校验边界一致性）
+ *  b64len    : 完整 base64 字符串长度
+ *  sha256    : 原始字节的 SHA-256（64 位十六进制），'-' 表示未校验
+ *  grid      : 码阵规模 K（1/4/9），仅作提示
+ *  name      : 文件名，恒为最后一个字段，可安全包含 '|'
+ *
+ *  payload 为 base64 片段，字符集 A-Za-z0-9+/= ，与 '|' 无交集。
+ * ============================================================ */
 
-    const chunkSizeSlider = document.getElementById('chunkSizeSlider');
-    const chunkSizeVal = document.getElementById('chunkSizeVal');
-    const qrSizeSlider = document.getElementById('qrSizeSlider');
-    const qrSizeVal = document.getElementById('qrSizeVal');
-    const speedSlider = document.getElementById('speedSlider');
-    const speedVal = document.getElementById('speedVal');
+function bytesToBase64(bytes) {
+    let bin = '';
+    const STEP = 0x8000;
+    for (let i = 0; i < bytes.length; i += STEP) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + STEP));
+    }
+    return btoa(bin);
+}
 
-    tabFile.addEventListener('click', () => switchMode('file'));
-    tabText.addEventListener('click', () => switchMode('text'));
+// ---------- DOM ----------
+const $ = id => document.getElementById(id);
+const canvas = $('qrcode');
+const ctx = canvas.getContext('2d');
+const gridBox = $('gridBox');
+const statusEl = $('status');
+const chunksGrid = $('chunksGrid');
 
-    function switchMode(mode) {
-        if (currentMode === mode) return;
-        currentMode = mode;
-        stopPlayback();
-        rawBase64Str = '';
-        chunks = [];
-        currentIndex = 0;
-        chunksGrid.innerHTML = '';
-        
-        if (mode === 'file') {
-            tabFile.classList.add('active');
-            tabText.classList.remove('active');
-            filePanel.classList.remove('hidden');
-            textPanel.classList.add('hidden');
-            fileInput.value = '';
-            statusElement.innerHTML = "已切换到文件模式，请选择文件";
-        } else {
-            tabFile.classList.remove('active');
-            tabText.classList.add('active');
-            filePanel.classList.add('hidden');
-            textPanel.classList.remove('hidden');
-            textInput.value = '';
-            statusElement.innerHTML = "已切换到纯文字模式，请输入文字";
+const tabFile = $('tabFile'), tabText = $('tabText');
+const filePanel = $('filePanel'), textPanel = $('textPanel');
+const fileInput = $('fileInput'), textInput = $('textInput');
+const gridSeg = $('gridSeg');
+const chunkSizeSlider = $('chunkSizeSlider'), chunkSizeVal = $('chunkSizeVal');
+const speedSlider = $('speedSlider'), speedVal = $('speedVal');
+const firstBtn = $('firstBtn'), prevBtn = $('prevBtn'), nextBtn = $('nextBtn'), playBtn = $('playBtn');
+
+// ---------- 状态 ----------
+let mode = 'file';
+let gridK = 4;
+let cols = 2;
+
+let rawBytes = null;
+let b64 = '';
+let sha = '-';
+let displayName = '';
+let steps = [];
+let totalChunks = 0;
+let stepOfChunk = [];
+// 每一步实际包含哪些分片号（0 表示元信息码），用于高亮，避免靠除法反推
+let chunksInStep = [];
+
+let currentStep = 0;
+let timer = null;
+let playing = false;
+let inputTimer = null;
+let prewarmTimer = null;
+
+// ---------- QR 渲染缓存 ----------
+// 只缓存「模块矩阵」：81×81 的位图，6.4 KB/码，115 片一共不到 1 MB。
+// 旧实现给每个码缓存一张 (n+8)×10 的离屏画布——600 B 一片时是 890×890、
+// 单张约 3 MB，缓存 96 张就是 290 MB 量级。首轮播放时每一步都在新建这种
+// 画布，内存一路爬升，走到最后几步正是最挤的时候：此时一次 GC 停顿或一次
+// 分配失败，就足以让那两格在相机抓帧的瞬间还没画上去。
+const qrCache = new Map();
+const QUIET = 4;
+const QR_CACHE_MAX = 4096;
+
+function getQRModules(text) {
+    const hit = qrCache.get(text);
+    if (hit) return hit;
+
+    const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
+    const entry = { n: qr.modules.size, bits: qr.modules.data };
+    if (qrCache.size >= QR_CACHE_MAX) qrCache.delete(qrCache.keys().next().value);
+    qrCache.set(text, entry);
+    return entry;
+}
+
+// 把模块矩阵直接画到主画布：坐标对齐到整数设备像素，相邻行共用同一套取整，
+// 既不会有缝隙，也不会糊边。跳过离屏画布后，一步 4 个码的绘制在 3 ms 量级。
+function drawQR(text, x, y, size) {
+    const { n, bits } = getQRModules(text);
+    const total = n + QUIET * 2;
+    const scale = size / total;
+    const path = new Path2D();
+
+    for (let r = 0; r < n; r++) {
+        const y0 = Math.round(y + (QUIET + r) * scale);
+        const y1 = Math.round(y + (QUIET + r + 1) * scale);
+        const h = y1 - y0;
+        if (h <= 0) continue;
+
+        let runStart = -1;
+        for (let m = 0; m <= n; m++) {
+            const dark = m < n && bits[r * n + m];
+            if (dark) {
+                if (runStart < 0) runStart = m;
+            } else if (runStart >= 0) {
+                const x0 = Math.round(x + (QUIET + runStart) * scale);
+                const x1 = Math.round(x + (QUIET + m) * scale);
+                if (x1 > x0) path.rect(x0, y0, x1 - x0, h);
+                runStart = -1;
+            }
         }
-        const ctx = canvasElement.getContext('2d');
-        ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    }
+
+    ctx.fillStyle = '#000000';
+    ctx.fill(path);
+}
+
+// ---------- 构建传输 ----------
+function buildTransfer() {
+    stopPlayback();
+    currentStep = 0;
+
+    if (!rawBytes || rawBytes.length === 0) {
+        steps = []; totalChunks = 0; stepOfChunk = []; chunksInStep = [];
+        clearCanvas();
         toggleButtons(true);
+        updateStatus();
+        return;
     }
 
-    fileInput.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        if (file.size > 500 * 1024) { alert("文件过大，建议限制在 500KB 以内。"); return; }
-        
-        fileName = file.name.length > 25 ? file.name.substring(0, 16) + "..." + file.name.split('.').pop() : file.name;
-        stopPlayback();
+    const chunkSize = parseInt(chunkSizeSlider.value, 10);
+    totalChunks = Math.ceil(b64.length / chunkSize);
 
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            rawBase64Str = event.target.result.split(',')[1];
-            processChunks();
-        };
-        reader.readAsDataURL(file);
-    });
+    const kind = mode === 'file' ? 'f' : 't';
+    const meta = `PF2|M|${kind}|${totalChunks}|${chunkSize}|${b64.length}|${sha}|${gridK}|${displayName}`;
 
-    textInput.addEventListener('input', () => {
-        stopPlayback();
+    const dataFrames = [];
+    for (let i = 0; i < totalChunks; i++) {
+        dataFrames.push(`PF2|D|${i + 1}|${b64.substr(i * chunkSize, chunkSize)}`);
+    }
+
+    steps = [];
+    stepOfChunk = new Array(totalChunks + 1).fill(0);
+    chunksInStep = [];
+
+    if (gridK === 1) {
+        steps.push([meta]);
+        chunksInStep.push([0]);
+        for (let i = 0; i < dataFrames.length; i++) {
+            steps.push([dataFrames[i]]);
+            chunksInStep.push([i + 1]);
+            stepOfChunk[i + 1] = i + 1;
+        }
+    } else {
+        // 元信息码固定占左上角（格位 0），每一步都重复播一次：
+        // 接收端随时能重新同步，手机中途对准也不用回到第一步。
+        // 其余 gridK-1 个格位装数据码。
+        const perStep = gridK - 1;
+        let idx = 0;
+
+        do {
+            const stepIndex = steps.length;
+            const cells = [meta];
+            const nums = [0];
+            for (let j = 0; j < perStep && idx < dataFrames.length; j++) {
+                cells.push(dataFrames[idx]);
+                nums.push(idx + 1);
+                stepOfChunk[idx + 1] = stepIndex;
+                idx++;
+            }
+            steps.push(cells);
+            chunksInStep.push(nums);
+        } while (idx < dataFrames.length);
+
+        // 尾步补满：最后一步往往只剩 1–2 片，整屏会空出一大块白。相机对
+        // 「画面突然变亮」最敏感（自动曝光会把这一帧压暗），而这一步一轮只
+        // 出现一次，于是尾片就成了整轮里最容易被漏掉的码。
+        // 用整轮末尾的分片把空格补齐——元信息码仍然固定在格位 0（左上角），
+        // 只是不再留白，同时给尾片多一份冗余。
+        const tail = steps[steps.length - 1];
+        if (gridK > 1 && tail.length < gridK && dataFrames.length > 0) {
+            const refill = dataFrames.slice(Math.max(0, dataFrames.length - perStep));
+            tail.length = 0;
+            tail.push(meta);
+            for (let i = 0; tail.length < gridK; i++) {
+                tail.push(refill[i % refill.length]);
+            }
+        }
+    }
+
+    renderChunkGrid();
+    toggleButtons(false);
+    layout();
+    prewarmCache();
+    maybeWarnLarge();
+}
+
+// ---------- 渲染 ----------
+function layout() {
+    const rect = gridBox.getBoundingClientRect();
+    const side = Math.floor(Math.min(rect.width, rect.height));
+    if (side < 60) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    canvas.width = Math.floor(side * dpr);
+    canvas.height = Math.floor(side * dpr);
+    canvas.style.width = side + 'px';
+    canvas.style.height = side + 'px';
+    renderStep();
+}
+
+function clearCanvas() {
+    const w = canvas.width || 2, h = canvas.height || 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+}
+
+function renderStep() {
+    if (!canvas.width) return;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (steps.length === 0) { updateStatus(); return; }
+
+    const cells = steps[currentStep] || [];
+    const cellPx = canvas.width / cols;
+    const pad = Math.max(2, Math.round(cellPx * 0.015));
+    const size = cellPx - pad * 2;
+
+    for (let i = 0; i < cells.length; i++) {
+        const payload = cells[i];
+        if (!payload) continue;
+        const ox = (i % cols) * cellPx + pad;
+        const oy = Math.floor(i / cols) * cellPx + pad;
+        drawQR(payload, ox, oy, size);
+    }
+
+    highlightChunks();
+    updateStatus();
+}
+
+function highlightChunks() {
+    document.querySelectorAll('.chunk-dot').forEach(d => d.classList.remove('active'));
+    const nums = chunksInStep[currentStep] || [];
+    for (const c of nums) {
+        const el = document.getElementById('dot-' + c);
+        if (el) el.classList.add('active');
+    }
+}
+
+function renderChunkGrid() {
+    chunksGrid.innerHTML = '';
+    if (totalChunks === 0) return;
+
+    const metaDot = document.createElement('div');
+    metaDot.className = 'chunk-dot meta-dot';
+    metaDot.id = 'dot-0';
+    metaDot.textContent = 'M';
+    metaDot.title = '元信息码（协议头）';
+    metaDot.addEventListener('click', () => jumpToChunk(0));
+    chunksGrid.appendChild(metaDot);
+
+    for (let c = 1; c <= totalChunks; c++) {
+        const dot = document.createElement('div');
+        dot.className = 'chunk-dot';
+        dot.id = 'dot-' + c;
+        dot.textContent = c;
+        dot.title = `第 ${c} 片 → 第 ${stepOfChunk[c] + 1} 步`;
+        dot.addEventListener('click', () => jumpToChunk(c));
+        chunksGrid.appendChild(dot);
+    }
+}
+
+function jumpToChunk(c) {
+    if (steps.length === 0) return;
+    stopPlayback();
+    currentStep = c === 0 ? 0 : (stepOfChunk[c] || 0);
+    renderStep();
+}
+
+function updateStatus() {
+    if (steps.length === 0) {
+        statusEl.innerHTML = '等候指令：请导入文件或输入文本';
+        return;
+    }
+    const isTailStep = gridK > 1 && steps.length > 1 && currentStep === steps.length - 1;
+    const chunkText = gridK === 1
+        ? (currentStep === 0 ? '元信息码' : `第 ${currentStep} / ${totalChunks} 片`)
+        : `第 ${currentStep + 1} / ${steps.length} 步${isTailStep ? ' · 末步放慢' : ''}`;
+
+    const kb = (rawBytes.length / 1024).toFixed(1);
+    const kindText = mode === 'file' ? `文件 ${displayName}` : '纯文本';
+    const stepDesc = gridK === 1
+        ? '每步 1 码'
+        : `每步 ${gridK} 码 · 左上角固定元信息码`;
+
+    statusEl.innerHTML =
+        `<strong>[${chunkText}]</strong> ${kindText}<br>` +
+        `数据 ${kb} KB · ${totalChunks} 片 · ${stepDesc} · 共 ${steps.length} 步` +
+        (sha === '-' ? '<br><span class="warn">未生成校验值，接收端将跳过完整性验证</span>' : '');
+}
+
+// ---------- 播放控制 ----------
+
+// 每步停留多久。整轮最后一步（唯一不满格的一屏）多留一倍多的时间：
+// 它一轮只出现一次，多停一会儿比多转一圈划算。
+function dwellFor(step) {
+    const base = parseInt(speedSlider.value, 10);
+    if (gridK > 1 && steps.length > 1 && step === steps.length - 1) {
+        return Math.round(base * 2.2);
+    }
+    return base;
+}
+
+// 递归 setTimeout 而不是固定节拍 setInterval：先渲染、再开始计时，
+// 绘制耗时不会从停留时间里扣掉。旧实现是固定节拍，首轮每一步都在新建
+// 渲染缓存，最慢的那几步实际可见时间被压到很短，而尾步正是首轮最慢、
+// 又一轮只出现一次的那一步。
+function scheduleNextStep() {
+    if (!playing) return;
+    timer = setTimeout(() => {
+        if (!playing) return;
+        currentStep = (currentStep + 1) % steps.length;
+        renderStep();
+        scheduleNextStep();
+    }, dwellFor(currentStep));
+}
+
+function startPlayback() {
+    if (steps.length === 0 || playing) return;
+    playing = true;
+    playBtn.textContent = '⏸ 暂停';
+    playBtn.className = 'btn btn-pause';
+    scheduleNextStep();
+}
+
+function stopPlayback() {
+    playing = false;
+    playBtn.textContent = '▶ 自动播放';
+    playBtn.className = 'btn btn-play';
+    if (timer) { clearTimeout(timer); timer = null; }
+}
+
+// 构建完成后把全部码的模块矩阵先算出来（约 1 ms/个，5 万字节的文件约 120 ms），
+// 首轮播放就不会有「这一步的码要现算」的抖动。分小批跑，每批之间让出主线程。
+function prewarmCache() {
+    if (prewarmTimer) { clearTimeout(prewarmTimer); prewarmTimer = null; }
+    const pending = [];
+    const seen = new Set();
+    for (const step of steps) {
+        for (const p of step) {
+            if (p && !seen.has(p) && !qrCache.has(p)) { seen.add(p); pending.push(p); }
+        }
+    }
+    // 分片特别多时（4 KB 一片的大文件）预热收益不大，也没必要烧几十秒 CPU
+    if (pending.length > 1500) return;
+    let i = 0;
+    (function runBatch() {
+        prewarmTimer = null;
+        const end = Math.min(pending.length, i + 16);
+        for (; i < end; i++) getQRModules(pending[i]);
+        if (i < pending.length) prewarmTimer = setTimeout(runBatch, 8);
+    })();
+}
+
+function toggleButtons(disabled) {
+    firstBtn.disabled = disabled;
+    prevBtn.disabled = disabled;
+    nextBtn.disabled = disabled;
+    playBtn.disabled = disabled;
+}
+
+// ---------- 输入处理 ----------
+function handleFile(file) {
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+        statusEl.innerHTML = `<div class="error">文件 ${(file.size / 1048576).toFixed(1)} MB 超出上限（4 MB）。二维码通道每 KB 都很贵，建议先压缩或改用其他方式。</div>`;
+        fileInput.value = '';
+        return;
+    }
+    displayName = file.name;
+    const reader = new FileReader();
+    reader.onload = e => {
+        rawBytes = new Uint8Array(e.target.result);
+        b64 = bytesToBase64(rawBytes);
+        sha = sha256Hex(rawBytes);
+        buildTransfer();
+    };
+    reader.onerror = () => {
+        statusEl.innerHTML = '<div class="error">读取文件失败，请重试。</div>';
+        fileInput.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function maybeWarnLarge() {
+    if (totalChunks > 1200 && steps.length > 0) {
+        const secs = Math.round(steps.length * parseInt(speedSlider.value, 10) / 1000);
+        statusEl.innerHTML += `<br><span class="warn">分片较多，纯播放预计 ${secs} 秒</span>`;
+    }
+}
+
+function scheduleTextBuild() {
+    clearTimeout(inputTimer);
+    inputTimer = setTimeout(() => {
         const text = textInput.value;
-        if (!text.trim()) { chunks = []; chunksGrid.innerHTML = ''; toggleButtons(true); return; }
-        rawBase64Str = btoa(unescape(encodeURIComponent(text)));
-        processChunks();
-    });
-
-    function processChunks() {
-        if (!rawBase64Str) return;
-        const chunkSize = parseInt(chunkSizeSlider.value);
-        chunks = [];
-        
-        const totalChunks = Math.ceil(rawBase64Str.length / chunkSize);
-        
-        if (currentMode === 'file') {
-            chunks.push(`meta|file|${fileName}|${totalChunks}`);
-        } else {
-            chunks.push(`meta|text|${totalChunks}`);
+        if (!text) {
+            rawBytes = null; b64 = ''; sha = '-'; steps = []; totalChunks = 0;
+            chunksGrid.innerHTML = '';
+            clearCanvas(); toggleButtons(true); updateStatus();
+            return;
         }
-        
-        for (let i = 0; i < rawBase64Str.length; i += chunkSize) {
-            const slice = rawBase64Str.substring(i, i + chunkSize);
-            const chunkIndex = Math.floor(i / chunkSize) + 1;
-            chunks.push(`data|${chunkIndex}|${slice}`);
-        }
-        
-        renderSenderGrid();
-        currentIndex = 0;
-        toggleButtons(false);
-        updateQR();
+        rawBytes = new TextEncoder().encode(text);
+        b64 = bytesToBase64(rawBytes);
+        sha = sha256Hex(rawBytes);
+        displayName = 'text.txt';
+        buildTransfer();
+    }, 220);
+}
+
+// ---------- 模式切换 ----------
+function switchMode(m) {
+    if (mode === m) return;
+    mode = m;
+    stopPlayback();
+    rawBytes = null; b64 = ''; sha = '-';
+    steps = []; totalChunks = 0; stepOfChunk = [];
+    chunksGrid.innerHTML = '';
+    clearCanvas();
+    toggleButtons(true);
+
+    if (m === 'file') {
+        tabFile.classList.add('active'); tabText.classList.remove('active');
+        filePanel.classList.remove('hidden'); textPanel.classList.add('hidden');
+        fileInput.value = '';
+    } else {
+        tabFile.classList.remove('active'); tabText.classList.add('active');
+        filePanel.classList.add('hidden'); textPanel.classList.remove('hidden');
+        textInput.value = '';
     }
+    updateStatus();
+}
 
-    function renderSenderGrid() {
-        chunksGrid.innerHTML = '';
-        
-        const metaDot = document.createElement('div');
-        metaDot.className = 'chunk-dot meta-dot';
-        metaDot.id = `sender-dot-0`;
-        metaDot.innerText = 'M';
-        metaDot.title = '初始化准备帧';
-        metaDot.addEventListener('click', () => jumpToChunk(0));
-        chunksGrid.appendChild(metaDot);
+// ---------- 事件 ----------
+tabFile.addEventListener('click', () => switchMode('file'));
+tabText.addEventListener('click', () => switchMode('text'));
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+textInput.addEventListener('input', scheduleTextBuild);
 
-        for (let i = 1; i < chunks.length; i++) {
-            const dot = document.createElement('div');
-            dot.className = 'chunk-dot';
-            dot.id = `sender-dot-${i}`;
-            dot.innerText = i;
-            dot.title = `点击强制显示第 ${i} 片数据`;
-            dot.addEventListener('click', () => jumpToChunk(i));
-            chunksGrid.appendChild(dot);
-        }
-    }
+gridSeg.addEventListener('click', e => {
+    const btn = e.target.closest('.seg-btn');
+    if (!btn) return;
+    const k = parseInt(btn.dataset.k, 10);
+    if (k !== 1 && k !== 4) return;   // 只保留 1×1 / 2×2
+    if (k === gridK) return;
+    gridK = k;
+    cols = Math.round(Math.sqrt(k));
+    gridSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+    buildTransfer();
+});
 
-    function jumpToChunk(index) {
-        stopPlayback();
-        currentIndex = index;
-        updateQR();
-    }
+chunkSizeSlider.addEventListener('input', e => { chunkSizeVal.textContent = e.target.value + ' B'; });
+chunkSizeSlider.addEventListener('change', buildTransfer);
 
-    function updateQR() {
-        if (chunks.length === 0) return;
-        const qrSize = parseInt(qrSizeSlider.value);
-        
-        QRCode.toCanvas(canvasElement, chunks[currentIndex], {
-            width: qrSize,
-            errorCorrectionLevel: 'L',
-            margin: 2
-        }, function (error) {
-            if (error) { statusElement.innerHTML = `<div class="error">渲染失败: ${error.message}</div>`; return; }
-            
-            if (currentIndex === 0) {
-                statusElement.innerHTML = `<strong>[准备帧]</strong> 请让手机对准右侧二维码初始化<br>` + 
-                    (currentMode === 'file' ? `文件: ${fileName}` : `纯文本传输`) + ` | 总片数: ${chunks.length - 1}`;
-            } else {
-                statusElement.innerHTML = `<strong>[数据帧]</strong> 正在传输: ${currentIndex} / ${chunks.length - 1}`;
-            }
-            
-            document.querySelectorAll('.chunk-dot').forEach(dot => dot.classList.remove('active'));
-            const activeDot = document.getElementById(`sender-dot-${currentIndex}`);
-            if (activeDot) {
-                activeDot.classList.add('active');
-                activeDot.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            }
+speedSlider.addEventListener('input', e => { speedVal.textContent = e.target.value + ' ms'; });
+speedSlider.addEventListener('change', () => { if (playing) { stopPlayback(); startPlayback(); } });
 
-            firstBtn.disabled = currentIndex === 0;
-            prevBtn.disabled = currentIndex === 0;
-            nextBtn.disabled = currentIndex === chunks.length - 1;
-        });
-    }
+firstBtn.addEventListener('click', () => { stopPlayback(); currentStep = 0; renderStep(); });
+prevBtn.addEventListener('click', () => { stopPlayback(); if (currentStep > 0) { currentStep--; renderStep(); } });
+nextBtn.addEventListener('click', () => { stopPlayback(); if (currentStep < steps.length - 1) { currentStep++; renderStep(); } });
+playBtn.addEventListener('click', () => playing ? stopPlayback() : startPlayback());
 
-    function startPlayback() {
-        if (chunks.length === 0 || isPlaying) return;
-        isPlaying = true;
-        playBtn.innerText = "⏸ 暂停播放";
-        playBtn.className = "btn btn-pause";
-        
-        playbackTimer = setInterval(() => {
-            currentIndex = (currentIndex < chunks.length - 1) ? currentIndex + 1 : 0; 
-            updateQR();
-        }, parseInt(speedSlider.value));
-    }
+document.addEventListener('keydown', e => {
+    if (steps.length === 0 || document.activeElement === textInput) return;
+    if (e.key === 'ArrowLeft') { stopPlayback(); if (currentStep > 0) { currentStep--; renderStep(); } }
+    else if (e.key === 'ArrowRight') { stopPlayback(); if (currentStep < steps.length - 1) { currentStep++; renderStep(); } }
+    else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); playing ? stopPlayback() : startPlayback(); }
+    else if (e.key === 'Home') { e.preventDefault(); stopPlayback(); currentStep = 0; renderStep(); }
+});
 
-    function stopPlayback() {
-        isPlaying = false;
-        playBtn.innerText = "▶ 自动播放";
-        playBtn.className = "btn btn-play";
-        if (playbackTimer) { clearInterval(playbackTimer); playbackTimer = null; }
-    }
+if (window.ResizeObserver) {
+    new ResizeObserver(() => layout()).observe(gridBox);
+} else {
+    window.addEventListener('resize', layout);
+}
 
-    // 统一处理按钮禁用态，保持 DOM 结构稳固
-    function toggleButtons(disabled) {
-        firstBtn.disabled = disabled;
-        prevBtn.disabled = disabled;
-        nextBtn.disabled = disabled;
-        playBtn.disabled = disabled;
-    }
+cols = Math.round(Math.sqrt(gridK));
+layout();
+updateStatus();
 
-    firstBtn.addEventListener('click', () => { stopPlayback(); currentIndex = 0; updateQR(); });
-    prevBtn.addEventListener('click', () => { stopPlayback(); if (currentIndex > 0) { currentIndex--; updateQR(); } });
-    nextBtn.addEventListener('click', () => { stopPlayback(); if (currentIndex < chunks.length - 1) { currentIndex++; updateQR(); } });
-    playBtn.addEventListener('click', () => isPlaying ? stopPlayback() : startPlayback());
-
-    chunkSizeSlider.addEventListener('input', (e) => chunkSizeVal.innerText = e.target.value + " 字");
-    chunkSizeSlider.addEventListener('change', processChunks);
-    
-    qrSizeSlider.addEventListener('input', (e) => {
-        qrSizeVal.innerText = e.target.value + " px";
-        canvasElement.style.width = e.target.value + 'px';
-        canvasElement.style.height = e.target.value + 'px';
-    });
-    qrSizeSlider.addEventListener('change', updateQR);
-    
-    speedSlider.addEventListener('input', (e) => speedVal.innerText = e.target.value + " ms");
-    speedSlider.addEventListener('change', () => { if (isPlaying) { stopPlayback(); startPlayback(); } });
-
-    document.addEventListener('keydown', (e) => {
-        if (chunks.length === 0 || document.activeElement === textInput) return; 
-        if (e.key === 'ArrowLeft') { stopPlayback(); if (currentIndex > 0) { currentIndex--; updateQR(); } }
-        else if (e.key === 'ArrowRight') { stopPlayback(); if (currentIndex < chunks.length - 1) { currentIndex++; updateQR(); } }
-        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); isPlaying ? stopPlayback() : startPlayback(); }
-        else if (e.key === 'Home' || e.key === '0') { e.preventDefault(); stopPlayback(); currentIndex = 0; updateQR(); }
-    });
+})();
 </script>
 </body>
 </html>

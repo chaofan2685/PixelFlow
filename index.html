@@ -1,50 +1,92 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>二维码文件/文字接收器</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f5f5f7; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
-        .container { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); width: 100%; max-width: 400px; box-sizing: border-box; text-align: center; }
-        h2 { margin-top: 0; color: #1d1d1f; font-size: 19px; }
-        
-        #reader-wrapper { width: 100%; overflow: hidden; border-radius: 12px; background: #000; margin-bottom: 15px; position: relative; aspect-ratio: 1; }
-        #reader { width: 100% !important; height: 100% !important; border: none !important; }
-        #reader video { object-fit: cover !important; }
-        
-        .status-card { background: #f5f5f7; padding: 12px; border-radius: 8px; margin-bottom: 15px; text-align: left; font-size: 13px; word-break: break-all; }
-        .progress-bar-bg { background: #e5e5ea; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 8px; display: none; }
-        .progress-bar-fill { background: #34c759; height: 100%; width: 0%; transition: width 0.15s; }
-        
-        .chunks-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-top: 10px; max-height: 100px; overflow-y: auto; }
-        .chunk-dot { aspect-ratio: 1; background: #e5e5ea; border-radius: 2px; font-size: 9px; display: flex; align-items: center; justify-content: center; color: #8e8e93; }
-        .chunk-dot.done { background: #34c759; color: white; }
-        
-        #textPreviewBox { display: none; max-height: 120px; overflow-y: auto; background: #fff; border: 1px solid #d2d2d7; padding: 8px; border-radius: 6px; margin-top: 10px; font-size: 13px; text-align: left; white-space: pre-wrap; color: #333; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>PixelFlow 接收端（网页版）</title>
+<script src="html5-qrcode.min.js"></script>
+<script src="sha256.js"></script>
+<style>
+    * { -webkit-tap-highlight-color: transparent; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: #f5f5f7; margin: 0; padding: 16px;
+        display: flex; flex-direction: column; align-items: center;
+        min-height: 100vh; box-sizing: border-box;
+    }
+    .container {
+        background: #fff; border-radius: 16px; padding: 18px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        width: 100%; max-width: 420px; box-sizing: border-box; text-align: center;
+    }
+    h2 { margin: 0 0 12px; font-size: 18px; color: #1d1d1f; }
 
-        .btn { background: #0071e3; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 10px; display: block; box-sizing: border-box; }
-        .btn-action { display: none; }
-        .btn-download { background: #34c759; }
-        .btn-copy { background: #5856d6; }
-        .btn-reset { background: #ff3b30; margin-top: 10px; display: none; }
-        .success-flash { animation: flash 0.15s ease-out; }
-        @keyframes flash { 0% { background: rgba(52, 199, 89, 0.4); } 100% { background: white; } }
-    </style>
+    #reader-wrapper {
+        width: 100%; aspect-ratio: 1 / 1; overflow: hidden;
+        border-radius: 12px; background: #000; margin-bottom: 14px;
+    }
+    #reader { width: 100% !important; height: 100% !important; border: none !important; }
+    #reader video { object-fit: cover !important; }
+
+    .status-card {
+        background: #f5f5f7; border-radius: 10px; padding: 12px;
+        margin-bottom: 12px; text-align: left; font-size: 13px; line-height: 1.5;
+    }
+    .row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+    .name { font-weight: 600; color: #1d1d1f; word-break: break-all; }
+    .pct { color: #34c759; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .sub { color: #8e8e93; font-size: 12px; margin-top: 3px; }
+
+    .progress-bar-bg { background: #e5e5ea; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 9px; display: none; }
+    .progress-bar-fill { background: #34c759; height: 100%; width: 0%; transition: width 0.15s; }
+
+    .chunks-grid {
+        display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px;
+        margin-top: 10px; max-height: 96px; overflow-y: auto; display: none;
+    }
+    .chunk-dot {
+        aspect-ratio: 1; background: #e5e5ea; border-radius: 3px; font-size: 9px;
+        display: flex; align-items: center; justify-content: center; color: #8e8e93;
+    }
+    .chunk-dot.done { background: #34c759; color: #fff; }
+
+    #textPreviewBox {
+        display: none; max-height: 130px; overflow-y: auto; background: #fff;
+        border: 1px solid #d2d2d7; border-radius: 8px; padding: 9px; margin-top: 10px;
+        font-size: 13px; text-align: left; white-space: pre-wrap; color: #333;
+        word-break: break-word;
+    }
+
+    .btn {
+        display: block; width: 100%; box-sizing: border-box; margin-top: 9px;
+        border: none; border-radius: 10px; padding: 13px 16px;
+        font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
+        background: #0071e3; color: #fff;
+    }
+    .btn:active { opacity: 0.85; }
+    .btn-download { background: #34c759; display: none; }
+    .btn-copy { background: #5856d6; display: none; }
+    .btn-reset { background: #ff3b30; display: none; }
+    .btn-ghost { background: #e5e5ea; color: #1d1d1f; }
+
+    .warn { color: #b25000; background: #fff4e5; border-radius: 8px; padding: 9px 10px; margin-top: 9px; font-size: 12px; line-height: 1.5; display: none; }
+    .error { color: #ff3b30; font-weight: 600; background: #ffebeb; border-radius: 8px; padding: 9px 10px; margin-top: 9px; font-size: 13px; display: none; }
+    .note { font-size: 12px; color: #8e8e93; margin-top: 12px; line-height: 1.5; text-align: left; }
+</style>
 </head>
 <body>
 
-<div class="container" id="mainContainer">
-    <h2>二维码文件/文字传输 (接收端)</h2>
-    
-    <div id="reader-wrapper">
-        <div id="reader"></div>
-    </div>
-    
+<div class="container">
+    <h2>PixelFlow 接收端（网页版）</h2>
+
+    <div id="reader-wrapper"><div id="reader"></div></div>
+
     <div class="status-card">
-        <div id="statusText">💡 请点击下方按钮允许摄像头权限开始扫描。</div>
-        <div id="metaInfo"></div>
+        <div class="row">
+            <span class="name" id="fileName">等待二维码</span>
+            <span class="pct" id="pctText"></span>
+        </div>
+        <div class="sub" id="statusText">点击下方按钮授权摄像头后开始扫描</div>
         <div class="progress-bar-bg" id="progressBg">
             <div class="progress-bar-fill" id="progressFill"></div>
         </div>
@@ -52,257 +94,307 @@
         <div id="textPreviewBox"></div>
     </div>
 
-    <button class="btn" id="startBtn">开启扫描相机</button>
-    <button class="btn btn-action btn-download" id="downloadBtn">💾 下载还原文件</button>
-    <button class="btn btn-action btn-copy" id="copyBtn">📋 一键复制文本</button>
-    <button class="btn btn-reset" id="resetBtn">重置清空</button>
+    <div class="warn" id="warnBox"></div>
+    <div class="error" id="errBox"></div>
+
+    <button class="btn" id="startBtn">开启摄像头</button>
+    <button class="btn btn-download" id="downloadBtn">存储文件</button>
+    <button class="btn btn-copy" id="copyBtn">复制文本</button>
+    <button class="btn btn-reset" id="resetBtn">重置</button>
+
+    <div class="note">
+        网页版每帧只能识别<b>一个</b>二维码。如果发送端用的是 2×2 / 3×3 多码阵列，
+        建议改用 iPhone 原生 App，或把发送端切回 1×1。<br>
+        浏览器要求安全上下文：以 <b>https</b> 或 <b>localhost</b> 打开本页，直接用 file:// 打开无法启用摄像头。
+    </div>
 </div>
 
 <script>
-    let html5QrCode = null;
-    let transferType = 'file'; 
-    let fileName = '';
-    let totalChunks = 0;
-    let receivedChunks = {}; 
-    let isMetaReceived = false;
-    let lastScannedData = ''; 
+(() => {
+'use strict';
 
-    const startBtn = document.getElementById('startBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const copyBtn = document.getElementById('copyBtn');
-    const resetBtn = document.getElementById('resetBtn');
-    const statusText = document.getElementById('statusText');
-    const metaInfo = document.getElementById('metaInfo');
-    const progressBg = document.getElementById('progressBg');
-    const progressFill = document.getElementById('progressFill');
-    const chunksGrid = document.getElementById('chunksGrid');
-    const textPreviewBox = document.getElementById('textPreviewBox');
-    const mainContainer = document.getElementById('mainContainer');
+/* PF2 协议
+ * 元信息: PF2|M|<kind>|<total>|<chunkSize>|<b64len>|<sha256>|<grid>|<name>
+ * 数据:   PF2|D|<idx>|<payload>
+ * name 恒为最后一个字段，用 slice 重组，因此文件名可包含 '|'。
+ */
 
-    startBtn.addEventListener('click', startCamera);
-    downloadBtn.addEventListener('click', downloadFile);
-    copyBtn.addEventListener('click', copyTextData);
-    resetBtn.addEventListener('click', resetAll);
+const $ = id => document.getElementById(id);
+const fileNameEl = $('fileName'), pctText = $('pctText'), statusText = $('statusText');
+const progressBg = $('progressBg'), progressFill = $('progressFill');
+const chunksGrid = $('chunksGrid'), textPreviewBox = $('textPreviewBox');
+const warnBox = $('warnBox'), errBox = $('errBox');
+const startBtn = $('startBtn'), downloadBtn = $('downloadBtn');
+const copyBtn = $('copyBtn'), resetBtn = $('resetBtn');
 
-    function startCamera() {
-        startBtn.style.display = 'none';
-        resetBtn.style.display = 'block';
-        
-        // 【优化】避免重复 new 实例造成组件冲突，全局只初始化一次
-        if (!html5QrCode) {
-            html5QrCode = new Html5Qrcode("reader");
-        }
-        
-        // 如果由于某种原因已经在扫描中，则不再重复调用 start
-        if (html5QrCode.isScanning) return;
-        
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            { fps: 25, qrbox: (w, h) => ({ width: w * 0.8, height: h * 0.8 }) }, 
-            onScanSuccess
-        ).catch(err => {
-            statusText.innerHTML = `<span style="color:#ff3b30;">无法打开相机: ${err}</span>`;
-            startBtn.style.display = 'block';
-        });
+let scanner = null;
+let busy = false;
+
+let meta = null;
+let chunks = [];
+let received = 0;
+let finished = false;
+
+function parseFrame(text) {
+    if (typeof text !== 'string' || !text.startsWith('PF2|')) return null;
+    const p = text.split('|');
+    if (p.length < 3) return null;
+
+    if (p[1] === 'M') {
+        if (p.length < 9) return null;
+        const total = Number(p[3]);
+        const chunkSize = Number(p[4]);
+        const b64len = Number(p[5]);
+        const grid = Number(p[7]);
+        if (!Number.isFinite(total) || total < 0 || total > 500000) return null;
+        if (!Number.isFinite(chunkSize) || chunkSize <= 0) return null;
+        if (!Number.isFinite(b64len) || b64len < 0) return null;
+        return {
+            type: 'meta',
+            kind: p[2],
+            total, chunkSize, b64len,
+            sha: p[6],
+            grid: Number.isFinite(grid) ? grid : 1,
+            name: p.slice(8).join('|') || 'received.bin'
+        };
     }
 
-    function onScanSuccess(decodedText) {
-        if (decodedText === lastScannedData) return;
-        lastScannedData = decodedText;
-
-        const parts = decodedText.split('|');
-        const type = parts[0];
-
-        if (type === 'meta' && !isMetaReceived) {
-            if (parts[1] === 'text') {
-                transferType = 'text';
-                totalChunks = parseInt(parts[2]);
-            } else if (parts[1] === 'file') {
-                transferType = 'file';
-                fileName = parts[2];
-                totalChunks = parseInt(parts[3]);
-            } else {
-                transferType = 'file';
-                fileName = parts[1];
-                totalChunks = parseInt(parts[2]);
-            }
-            
-            isMetaReceived = true;
-            progressBg.style.display = 'block';
-            
-            chunksGrid.innerHTML = '';
-            for(let i = 1; i <= totalChunks; i++) {
-                const dot = document.createElement('div');
-                dot.className = 'chunk-dot';
-                dot.id = `dot-${i}`;
-                dot.innerText = i;
-                chunksGrid.appendChild(dot);
-            }
-            triggerFlash();
-            updateUI();
-        } 
-        else if (type === 'data' && isMetaReceived) {
-            const index = parseInt(parts[1]);
-            const content = parts[2];
-
-            if (!receivedChunks[index]) {
-                receivedChunks[index] = content;
-                const dot = document.getElementById(`dot-${index}`);
-                if(dot) dot.className = 'chunk-dot done';
-                
-                triggerFlash();
-                updateUI();
-                checkCompletion();
-            }
-        }
+    if (p[1] === 'D') {
+        if (p.length < 4) return null;
+        const idx = Number(p[2]);
+        if (!Number.isInteger(idx) || idx < 1 || idx > 500000) return null;
+        return { type: 'data', idx, payload: p.slice(3).join('|') };
     }
 
-    function updateUI() {
-        const receivedCount = Object.keys(receivedChunks).length;
-        if (!isMetaReceived) {
-            statusText.innerText = "正在等待读取电脑端的 [准备帧]...";
-        } else {
-            metaInfo.innerHTML = `<strong>模式:</strong> ${transferType === 'file' ? '文件传输' : '纯文本传输'}<br>` + 
-                                (transferType === 'file' ? `<strong>文件名:</strong> ${fileName}<br>` : '') +
-                                `<strong>总片数:</strong> ${totalChunks}`;
-            statusText.innerHTML = `<strong>已接收数据:</strong> ${receivedCount} / ${totalChunks}`;
-            progressFill.style.width = `${(receivedCount / totalChunks) * 100}%`;
-        }
+    return null;
+}
+
+function identity(m) {
+    return `${m.sha}|${m.total}|${m.b64len}|${m.name}`;
+}
+
+function beginSession(m) {
+    meta = m;
+    chunks = new Array(m.total + 1).fill(undefined);
+    received = 0;
+    finished = false;
+
+    fileNameEl.textContent = m.name;
+    pctText.textContent = '0%';
+    progressBg.style.display = 'block';
+    progressFill.style.width = '0%';
+    textPreviewBox.style.display = 'none';
+    textPreviewBox.textContent = '';
+    downloadBtn.style.display = 'none';
+    copyBtn.style.display = 'none';
+    errBox.style.display = 'none';
+
+    chunksGrid.innerHTML = '';
+    for (let i = 1; i <= m.total; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'chunk-dot';
+        dot.id = 'dot-' + i;
+        dot.textContent = i;
+        chunksGrid.appendChild(dot);
+    }
+    chunksGrid.style.display = m.total > 0 ? 'grid' : 'none';
+
+    if (m.grid > 1) {
+        warnBox.textContent = `发送端当前是 ${Math.round(Math.sqrt(m.grid))}×${Math.round(Math.sqrt(m.grid))} 多码阵列，网页版每帧只能识别一个码，会比较慢。建议改用 iPhone App。`;
+        warnBox.style.display = 'block';
+    } else {
+        warnBox.style.display = 'none';
     }
 
-    function checkCompletion() {
-        const receivedCount = Object.keys(receivedChunks).length;
-        if (receivedCount === totalChunks && totalChunks > 0) {
-            statusText.innerHTML = `<span style="color:#34c759; font-weight:bold;">🎉 全部分片接收完毕！</span>`;
-            
-            // 【安全停机】增加状态校验，防止重复停止
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => { 
-                    document.getElementById('reader-wrapper').style.display = 'none'; 
-                }).catch(err => console.error("自动停机失败:", err));
-            } else {
-                document.getElementById('reader-wrapper').style.display = 'none';
-            }
-            
-            if (transferType === 'file') {
-                downloadBtn.style.display = 'block';
-                downloadFile(); 
-            } else {
-                copyBtn.style.display = 'block';
-                showTextPreview(); 
-            }
-        }
+    updateProgress();
+    if (m.total === 0) finish();
+}
+
+function updateProgress() {
+    if (!meta) return;
+    const pct = meta.total > 0 ? Math.round(received / meta.total * 100) : 100;
+    pctText.textContent = pct + '%';
+    progressFill.style.width = pct + '%';
+    statusText.textContent = `已接收 ${received} / ${meta.total} 片`;
+}
+
+function onFrame(text) {
+    const f = parseFrame(text);
+    if (!f) return;
+
+    if (f.type === 'meta') {
+        if (!meta) { beginSession(f); return; }
+        if (identity(meta) === identity(f)) return;
+        beginSession(f);
+        return;
     }
 
-    function AssembleChunks() {
-        let fullBase64 = '';
-        for (let i = 1; i <= totalChunks; i++) {
-            fullBase64 += receivedChunks[i];
+    if (!meta || finished) return;
+    if (f.idx > meta.total) return;
+    if (chunks[f.idx] !== undefined) return;
+
+    chunks[f.idx] = f.payload;
+    received++;
+
+    const dot = document.getElementById('dot-' + f.idx);
+    if (dot) dot.className = 'chunk-dot done';
+
+    updateProgress();
+    if (received === meta.total) finish();
+}
+
+function finish() {
+    finished = true;
+    if (!meta) return;
+
+    let joined = '';
+    for (let i = 1; i <= meta.total; i++) {
+        if (chunks[i] === undefined) {
+            finished = false;
+            return;
         }
-        return fullBase64;
+        joined += chunks[i];
     }
 
-    function downloadFile() {
+    if (joined.length !== meta.b64len) {
+        showError(`长度校验失败：收到 ${joined.length} 字符，协议声明 ${meta.b64len}`);
+        return;
+    }
+
+    let bytes;
+    try {
+        const bin = atob(joined);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    } catch (e) {
+        showError('Base64 解码失败，数据可能已损坏');
+        return;
+    }
+
+    let verified = false;
+    if (meta.sha && meta.sha !== '-' && meta.sha.length === 64) {
+        const hex = sha256Hex(bytes);
+        if (hex !== meta.sha.toLowerCase()) {
+            showError('SHA-256 校验失败，数据在传输中损坏了');
+            return;
+        }
+        verified = true;
+    }
+
+    stopCamera();
+    statusText.textContent = verified ? 'SHA-256 校验通过，接收完成' : '接收完成（发送端未提供校验值）';
+    pctText.textContent = '100%';
+    progressFill.style.width = '100%';
+    chunksGrid.style.display = 'none';
+    resetBtn.style.display = 'block';
+
+    if (meta.kind === 't') {
+        let text = '';
         try {
-            const fullBase64 = AssembleChunks();
-            const byteCharacters = atob(fullBase64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: 'application/octet-stream' });
-
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            statusText.innerText = "文件已成功导出！请查看浏览器的下载列表。";
+            text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
         } catch (e) {
-            statusText.innerHTML = `<span style="color:#ff3b30;">文件下载失败: ${e.message}</span>`;
+            showError('文本解码失败');
+            return;
         }
+        textPreviewBox.textContent = text;
+        textPreviewBox.style.display = 'block';
+        copyBtn.style.display = 'block';
+        window.__lastText = text;
+    } else {
+        window.__lastBlob = new Blob([bytes], { type: 'application/octet-stream' });
+        downloadBtn.style.display = 'block';
+        downloadBtn.textContent = `存储文件（${(bytes.length / 1024).toFixed(1)} KB）`;
     }
+}
 
-    function getPlainText() {
-        const fullBase64 = AssembleChunks();
-        return decodeURIComponent(escape(atob(fullBase64)));
+function showError(msg) {
+    errBox.textContent = msg;
+    errBox.style.display = 'block';
+}
+
+function stopCamera() {
+    if (scanner && scanner.isScanning) {
+        scanner.stop().catch(() => {});
     }
+}
 
-    function showTextPreview() {
-        try {
-            const text = getPlainText();
-            textPreviewBox.innerText = text;
-            textPreviewBox.style.display = 'block';
-        } catch(e) {
-            textPreviewBox.innerText = "文本解析失败: " + e.message;
-        }
-    }
+function startCamera() {
+    if (busy) return;
+    busy = true;
+    startBtn.style.display = 'none';
+    resetBtn.style.display = 'block';
 
-    function copyTextData() {
-        try {
-            const text = getPlainText();
-            navigator.clipboard.writeText(text).then(() => {
-                copyBtn.innerText = "✅ 复制成功！";
-                statusText.innerHTML = `<span style="color:#34c759; font-weight:bold;">📋 文本已成功写入剪贴板。</span>`;
-                setTimeout(() => { copyBtn.innerText = "📋 一键复制文本"; }, 2000);
-            }).catch(err => { throw new Error(); });
-        } catch (e) {
-            try {
-                const textarea = document.createElement('textarea');
-                textarea.value = getPlainText();
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                alert("复制成功 (安全通道)");
-            } catch(err) {
-                alert("复制失败，请在下方预览框中手动长按全选复制。");
-            }
-        }
-    }
+    if (!scanner) scanner = new Html5Qrcode('reader');
+    if (scanner.isScanning) { busy = false; return; }
 
-    function triggerFlash() {
-        mainContainer.classList.add('success-flash');
-        setTimeout(() => mainContainer.classList.remove('success-flash'), 100);
-    }
-
-    // 【核心重构：绝对安全的重置逻辑】
-    function resetAll() {
-        if (html5QrCode) {
-            try {
-                // 只有处于运行扫描状态，才调用 stop
-                if (html5QrCode.isScanning) {
-                    html5QrCode.stop().catch(err => console.log("静默捕获Promise拒绝:", err));
-                }
-            } catch (e) {
-                // 强行用 try...catch 吞掉同步报错，坚决不让它阻断后续 UI 代码的执行
-                console.warn("强行忽略相机底层状态同步冲突:", e);
-            }
-        }
-        
-        // 彻底清空所有业务和控制变量
-        fileName = '';
-        totalChunks = 0;
-        receivedChunks = {};
-        isMetaReceived = false;
-        lastScannedData = '';
-        
-        // 完美还原初始化 UI 状态
-        document.getElementById('reader-wrapper').style.display = 'block';
+    scanner.start(
+        { facingMode: 'environment' },
+        { fps: 25, qrbox: (w, h) => ({ width: Math.round(w * 0.9), height: Math.round(h * 0.9) }) },
+        onFrame
+    ).catch(err => {
+        showError('无法打开摄像头：' + err);
         startBtn.style.display = 'block';
-        downloadBtn.style.display = 'none';
-        copyBtn.style.display = 'none';
-        textPreviewBox.style.display = 'none';
-        textPreviewBox.innerText = '';
-        progressBg.style.display = 'none';
-        progressFill.style.width = '0%';
-        chunksGrid.innerHTML = '';
-        statusText.style.color = '#1d1d1f';
-        statusText.innerText = "💡 请点击下方按钮允许摄像头权限开始扫描。";
-        metaInfo.innerText = '';
+    }).finally(() => { busy = false; });
+}
+
+function resetAll() {
+    stopCamera();
+    meta = null; chunks = []; received = 0; finished = false;
+    window.__lastBlob = null; window.__lastText = '';
+
+    fileNameEl.textContent = '等待二维码';
+    pctText.textContent = '';
+    statusText.textContent = '点击下方按钮授权摄像头后开始扫描';
+    progressBg.style.display = 'none';
+    progressFill.style.width = '0%';
+    chunksGrid.style.display = 'none';
+    chunksGrid.innerHTML = '';
+    textPreviewBox.style.display = 'none';
+    textPreviewBox.textContent = '';
+    warnBox.style.display = 'none';
+    errBox.style.display = 'none';
+    downloadBtn.style.display = 'none';
+    copyBtn.style.display = 'none';
+    startBtn.style.display = 'block';
+    resetBtn.style.display = 'none';
+}
+
+startBtn.addEventListener('click', startCamera);
+resetBtn.addEventListener('click', resetAll);
+
+downloadBtn.addEventListener('click', () => {
+    if (!window.__lastBlob || !meta) return;
+    const url = URL.createObjectURL(window.__lastBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = meta.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+});
+
+copyBtn.addEventListener('click', async () => {
+    const text = window.__lastText || '';
+    try {
+        await navigator.clipboard.writeText(text);
+        copyBtn.textContent = '已复制';
+    } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); copyBtn.textContent = '已复制'; }
+        catch (_) { copyBtn.textContent = '复制失败，请长按预览框选择'; }
+        document.body.removeChild(ta);
     }
+    setTimeout(() => { copyBtn.textContent = '复制文本'; }, 1800);
+});
+
+if (location.protocol === 'file:') {
+    showError('当前以 file:// 打开，浏览器会拒绝摄像头权限。请用 https 或本地服务器（如 python3 -m http.server）访问本页。');
+}
+})();
 </script>
 </body>
 </html>
