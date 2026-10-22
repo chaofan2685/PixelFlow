@@ -37,6 +37,19 @@ Open `send.html` in a browser (no camera needed, `file://` is fine).
 2. Choose grid size: `1×1` or `2×2` (default)
 3. Hit **Autoplay** and point the phone at the screen
 
+Keyboard shortcuts (when focus is not in an input):
+
+| Key | Action |
+| --- | --- |
+| `digits` + `letter/Enter` | Jump straight to that chunk (type `12`, then press any letter key or Enter); it also auto-jumps after 2 s |
+| `0` | Back to the meta step (first step) |
+| `Esc` | Cancel the chunk number being typed |
+| `←` / `→` | Previous / next step |
+| `Space` | Play / pause |
+| `Home` | Back to the first step |
+
+The jump toast appears at the top of the page, so it never covers the QR codes. An out-of-range number shows "no chunk #N" and leaves the current step untouched.
+
 ### 2. Receiver · iOS app
 
 Requires macOS with Xcode 16+, iPhone on iOS 17+.

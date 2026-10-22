@@ -90,6 +90,21 @@
     }
     .grid-box canvas { display: block; }
 
+    /* 数字键跳片的浮层提示：固定在页面顶部，绝不遮挡二维码 */
+    .jump-hint {
+        position: fixed; left: 50%; top: 18px;
+        transform: translateX(-50%) translateY(-10px);
+        padding: 8px 18px; border-radius: 999px;
+        background: rgba(29, 29, 31, 0.9); color: #fff;
+        font-size: 13px; font-weight: 600; white-space: nowrap;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+        opacity: 0; pointer-events: none; z-index: 99;
+        transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+    .jump-hint.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .jump-hint.typing { background: rgba(0, 113, 227, 0.95); }
+    .jump-hint.bad { background: rgba(255, 59, 48, 0.95); }
+
     .info { width: 100%; text-align: center; color: #1d1d1f; font-size: 13px; line-height: 1.55; word-break: break-all; min-height: 40px; }
     .info strong { color: #0071e3; }
     .error { color: #ff3b30; font-weight: 600; background: #ffebeb; padding: 8px 10px; border-radius: 6px; width: 100%; box-sizing: border-box; }
@@ -132,13 +147,13 @@
             </div>
             <div class="control-row">
                 <label for="chunkSizeSlider">每片数据量</label>
-                <input type="range" id="chunkSizeSlider" min="200" max="1200" step="50" value="700">
-                <span class="value-span" id="chunkSizeVal">700 B</span>
+                <input type="range" id="chunkSizeSlider" min="200" max="1000" step="50" value="600">
+                <span class="value-span" id="chunkSizeVal">600 B</span>
             </div>
             <div class="control-row">
                 <label for="speedSlider">每步停留</label>
-                <input type="range" id="speedSlider" min="50" max="1200" step="50" value="200">
-                <span class="value-span" id="speedVal">200 ms</span>
+                <input type="range" id="speedSlider" min="50" max="500" step="50" value="100">
+                <span class="value-span" id="speedVal">100 ms</span>
             </div>
         </div>
 
@@ -154,6 +169,7 @@
 
         <div class="hint">
             • 左上角固定为 <strong>M</strong>（元信息码），每一步都重复播，手机中途对准也能直接同步。<br>
+            • 直接敲片号跳过去（如敲 <strong>12</strong>），再按<strong>任意字母键</strong>或回车立即跳；不按就等 2 秒自动跳。 <strong>0</strong> 回元信息步，Esc 取消。<br>
             • 最后一步会用末尾几片把格子补满（同一个码重复出现），并多停一倍时间，不是出错。<br>
             • 停留短于 150 ms 时手机可能来不及解出，缺片多就把它调回去。<br>
             • 缺片时点数字补发；屏幕亮度拉满、避免反光。
@@ -167,6 +183,8 @@
         <div class="info" id="status">等候指令：请导入文件或输入文本</div>
     </div>
 </div>
+
+<div class="jump-hint" id="jumpHint"></div>
 
 <script>
 (() => {
@@ -204,6 +222,7 @@ const canvas = $('qrcode');
 const ctx = canvas.getContext('2d');
 const gridBox = $('gridBox');
 const statusEl = $('status');
+const jumpHintEl = $('jumpHint');
 const chunksGrid = $('chunksGrid');
 
 const tabFile = $('tabFile'), tabText = $('tabText');
@@ -448,6 +467,103 @@ function jumpToChunk(c) {
     stopPlayback();
     currentStep = c === 0 ? 0 : (stepOfChunk[c] || 0);
     renderStep();
+    const dot = document.getElementById('dot-' + c);
+    if (dot) dot.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+// ---------- 数字键跳片 ----------
+// 敲片号跳过去：敲 1、2 → 停在「12」上，按任意字母键（或回车）立刻跳；
+// 什么都不按，等 2 秒也会自己跳。0 单独敲表示回到元信息步，敲错按 Esc 取消。
+// 边敲边在页面顶部显示当前累积的片号。
+const JUMP_COMMIT_MS = 2000;
+
+let jumpBuffer = '';
+let jumpTimer = null;
+let hintTimer = null;
+
+function showJumpHint(text, tone) {
+    if (!jumpHintEl) return;
+    jumpHintEl.textContent = text;
+    jumpHintEl.className = 'jump-hint show' + (tone ? ' ' + tone : '');
+    clearTimeout(hintTimer);
+    // 输入中的提示要盖满整个自动提交窗口，否则会在跳动前先闪一下空白
+    hintTimer = setTimeout(() => {
+        jumpHintEl.className = 'jump-hint';
+    }, tone === 'typing' ? JUMP_COMMIT_MS + 400 : 1100);
+}
+
+function commitJump() {
+    clearTimeout(jumpTimer);
+    jumpTimer = null;
+    const raw = jumpBuffer;
+    jumpBuffer = '';
+    if (!raw) return;
+
+    if (raw === '0') {
+        jumpToChunk(0);
+        showJumpHint('M · 元信息步', '');
+        return;
+    }
+
+    const n = parseInt(raw, 10);
+    if (!totalChunks) {
+        showJumpHint('还没导入数据', 'bad');
+        return;
+    }
+    if (n < 1 || n > totalChunks) {
+        showJumpHint(`没有第 ${n} 片`, 'bad');
+        return;
+    }
+    jumpToChunk(n);
+    showJumpHint(`→ 第 ${n} 片`, '');
+}
+
+function cancelJump() {
+    clearTimeout(jumpTimer);
+    jumpTimer = null;
+    if (jumpBuffer) {
+        jumpBuffer = '';
+        showJumpHint('已取消', 'bad');
+    }
+}
+
+// 返回 true 表示这个按键已被跳片逻辑消费
+function handleJumpKey(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return false;
+
+    if (/^[0-9]$/.test(e.key)) {
+        jumpBuffer += e.key;
+        // 已经超过总片数，再敲也不可能变合法，立刻判定
+        if (totalChunks && parseInt(jumpBuffer, 10) > totalChunks && jumpBuffer !== '0') {
+            commitJump();
+            return true;
+        }
+        showJumpHint('#' + jumpBuffer, 'typing');
+        clearTimeout(jumpTimer);
+        jumpTimer = setTimeout(commitJump, JUMP_COMMIT_MS);
+        return true;
+    }
+
+    if (e.key === 'Enter' && jumpBuffer) {
+        commitJump();
+        return true;
+    }
+
+    // 任意字母键当作「输入完毕」的确认：敲 12 再敲 a，立即跳到第 12 片。
+    // 字母键在页面上没有别的用途，吞掉它不会影响其它快捷键。
+    if (/^[a-zA-Z]$/.test(e.key)) {
+        if (jumpBuffer) {
+            commitJump();
+            return true;
+        }
+        return false;
+    }
+
+    if (e.key === 'Escape') {
+        cancelJump();
+        return true;
+    }
+    return false;
 }
 
 function updateStatus() {
@@ -643,7 +759,18 @@ nextBtn.addEventListener('click', () => { stopPlayback(); if (currentStep < step
 playBtn.addEventListener('click', () => playing ? stopPlayback() : startPlayback());
 
 document.addEventListener('keydown', e => {
-    if (steps.length === 0 || document.activeElement === textInput) return;
+    const el = document.activeElement;
+    const typing = el && ((el.tagName === 'TEXTAREA') ||
+        (el.tagName === 'INPUT' && el.type !== 'range'));
+    if (typing) return;
+    if (steps.length === 0) {
+        if (/^[0-9]$/.test(e.key)) { e.preventDefault(); showJumpHint('还没导入数据', 'bad'); }
+        return;
+    }
+
+    // 数字键 → 跳片（也吃掉这里的 Enter / Esc）
+    if (handleJumpKey(e)) { e.preventDefault(); return; }
+
     if (e.key === 'ArrowLeft') { stopPlayback(); if (currentStep > 0) { currentStep--; renderStep(); } }
     else if (e.key === 'ArrowRight') { stopPlayback(); if (currentStep < steps.length - 1) { currentStep++; renderStep(); } }
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); playing ? stopPlayback() : startPlayback(); }
