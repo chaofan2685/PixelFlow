@@ -63,6 +63,24 @@ open PixelFlowReceiver/PixelFlowReceiver.xcodeproj
 3. Connect your iPhone, select it in the toolbar, press **⌘R**
 4. On first launch, trust the developer certificate in **Settings → General → VPN & Device Management**
 
+Or run the one-shot script (build + install + launch):
+
+```bash
+cd PixelFlowReceiver
+./install-to-device.sh
+```
+
+**First launch: “Untrusted Developer”**
+
+iOS blocks the very first launch with “*Untrusted Developer — Your device management settings do not allow using apps from developer “Apple Development: you@example.com (XXXXXXXXXX)” on this iPhone*”. The app is installed fine; the phone simply has not trusted your certificate yet:
+
+1. **Settings → General → VPN & Device Management** (⚠️ not “Privacy & Security → Developer”)
+2. Under **Developer App**, tap `Apple Development: your@email`
+3. Tap **Trust**, then **Trust** again in the dialog
+4. Relaunch PixelFlow
+
+This is a one-time step — reinstalling within the 7-day window (renewal) does not require trusting again. If the **Developer App** section is missing, make sure you opened the one under **General**, then replug or reboot the phone so it can validate the certificate online.
+
 > Free Apple ID signatures expire after **7 days** — reconnect to Xcode and press ⌘R again to renew.
 
 **After the transfer completes**

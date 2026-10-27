@@ -1,0 +1,49 @@
+# ---------- macOS 系统 ----------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+
+# ---------- 本地备份 / 编辑器状态 ----------
+# .backup 是手工留的旧版页面副本，不是源码
+.backup/
+*.bak
+.idea/
+.vscode/
+*.iml
+*~
+
+# ---------- WorkBuddy 本地数据 ----------
+# 如希望把 .workbuddy/memory 里的开发记录一起入库，删掉下面这一行
+.workbuddy/
+
+# ---------- Xcode 构建产物 ----------
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.hmap
+*.moved-aside
+*.o
+*.swiftpm
+.swiftpm/
+SourcePackages/
+.build/
+
+# ---------- Xcode 用户级文件 ----------
+# xcuserdata 存的是本机的窗口状态、断点、选中设备，换台机器就是噪音
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# ---------- 临时文件 ----------
+*.log
+*.tmp
+*.swp
+/PixelFlowReceiver/build/
