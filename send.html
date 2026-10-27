@@ -152,8 +152,8 @@
             </div>
             <div class="control-row">
                 <label for="speedSlider">每步停留</label>
-                <input type="range" id="speedSlider" min="50" max="1200" step="50" value="200">
-                <span class="value-span" id="speedVal">200 ms</span>
+                <input type="range" id="speedSlider" min="50" max="1200" step="50" value="100">
+                <span class="value-span" id="speedVal">100 ms</span>
             </div>
         </div>
 
@@ -168,11 +168,7 @@
         <div class="chunks-grid" id="chunksGrid"></div>
 
         <div class="hint">
-            • 左上角固定为 <strong>M</strong>（元信息码），每一步都重复播，手机中途对准也能直接同步。<br>
-            • 直接敲片号跳过去（如敲 <strong>12</strong>），再按<strong>任意字母键</strong>或回车立即跳；不按就等 2 秒自动跳。 <strong>0</strong> 回元信息步，Esc 取消。<br>
-            • 最后一步会用末尾几片把格子补满（同一个码重复出现），并多停一倍时间，不是出错。<br>
-            • 停留短于 150 ms 时手机可能来不及解出，缺片多就把它调回去。<br>
-            • 缺片时点数字补发；屏幕亮度拉满、避免反光。
+            • 缺少哪一片，就直接敲片号（如敲 <strong>12</strong>），再按<strong>任意字母键</strong>立即跳到指定片。 <strong>0</strong> 回元信息步，Esc 取消。<br>
         </div>
     </div>
 
