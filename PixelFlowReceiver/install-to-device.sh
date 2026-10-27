@@ -44,6 +44,42 @@ for tool in xcodebuild xcrun security openssl; do
 done
 [ -d "$PROJECT" ] || die "找不到工程文件：$PROJECT" "请在 $PROJECT_DIR 下运行本脚本"
 
+# 解析 devicectl 的 JSON 用的是 /usr/bin/python3，它由命令行工具提供。
+# 新机器上没装 CLT 时这里会失败；不提前拦下的话，后面会误报「没有检测到 iPhone」。
+/usr/bin/python3 -c 'pass' >/dev/null 2>&1 \
+    || die "缺少 /usr/bin/python3（Xcode 命令行工具没装好）" "执行：xcode-select --install
+装完再运行本脚本。"
+
+# xcode-select 指向 CommandLineTools 而不是 Xcode.app 时，xcodebuild 会直接报 requires Xcode
+DEV_DIR="$(xcode-select -p 2>/dev/null || true)"
+case "$DEV_DIR" in
+    *.app/Contents/Developer) ;;
+    *)
+        die "命令行工具没有指向 Xcode" "当前路径：${DEV_DIR:-未知}
+执行：sudo xcode-select -s /Applications/Xcode.app" ;;
+esac
+
+# 新装的 Xcode 必须先接受许可，否则任何 xcodebuild 调用都会立刻失败
+if ! XCODE_INFO="$(xcodebuild -version 2>&1)"; then
+    if printf '%s' "$XCODE_INFO" | grep -qi "license"; then
+        die "Xcode 许可协议尚未接受" "执行：sudo xcodebuild -license accept
+（或打开一次 Xcode.app，按提示点「Agree」）"
+    fi
+    die "xcodebuild 无法运行" "$XCODE_INFO"
+fi
+
+XCODE_VER="$(printf '%s\n' "$XCODE_INFO" | head -1 | sed -E 's/^Xcode *//')"
+XCODE_MAJOR="${XCODE_VER%%.*}"
+case "$XCODE_MAJOR" in
+    ''|*[!0-9]*) XCODE_MAJOR=0 ;;
+esac
+if [ "$XCODE_MAJOR" -lt 15 ]; then
+    die "Xcode 版本过旧（${XCODE_VER}）" "本工程用到 Swift 宏与 iOS 17 SDK，请升级到 Xcode 26 或更高。"
+elif [ "$XCODE_MAJOR" -lt 26 ]; then
+    warn "Xcode ${XCODE_VER} 偏旧：工程只在 Xcode 26/27 上验证过。若手机系统版本比它新，真机会连不上，需要升级 Xcode"
+fi
+ok "Xcode ${XCODE_VER}"
+
 # ---------- 1. 找设备 ----------
 info "查找已连线的 iPhone…"
 
@@ -145,18 +181,19 @@ import json, sys
 try:
     r = json.load(open(sys.argv[1])).get('result', {})
 except Exception:
-    print('unknown unknown')
+    print('unknown unknown -')
     sys.exit(0)
 dp = r.get('deviceProperties') or {}
 dm = str(dp.get('developerModeStatus') or 'unknown').lower()
 ddi = dp.get('ddiServicesAvailable')
-print(dm, 'yes' if ddi else 'no')
+osver = str(dp.get('osVersionNumber') or '-')
+print(dm, 'yes' if ddi else 'no', osver)
 PY
     rm -f "$json"
 }
 
 info "检查开发者模式与开发者镜像…"
-read -r DEV_MODE DDI_READY <<<"$(read_device_flags "$TARGET_UDID")"
+read -r DEV_MODE DDI_READY OS_VER <<<"$(read_device_flags "$TARGET_UDID")"
 
 if [ "$DEV_MODE" = "disabled" ]; then
     die "iPhone 的开发者模式未开启，安装会被系统直接拒绝" "在 iPhone 上操作（无法用命令代劳）：
@@ -168,16 +205,39 @@ fi
 ok "开发者模式已开启"
 
 if [ "$DDI_READY" != "yes" ]; then
-    warn "手机当前是锁屏状态（开发者镜像未挂载），编译会照常进行，安装前请解锁"
+    # 开发者镜像挂不上有两种原因：手机锁屏（最常见），或者 Xcode 比手机系统旧。
+    # 换新 Mac 时后者很容易踩到 —— 症状和锁屏一样，但解锁多少次都没用。
+    OS_MAJOR="${OS_VER%%.*}"
+    case "$OS_MAJOR" in ''|*[!0-9]*) OS_MAJOR=0 ;; esac
+    if [ "$OS_MAJOR" -gt "$XCODE_MAJOR" ]; then
+        warn "手机是 iOS ${OS_VER}，本机 Xcode 只有 ${XCODE_VER} —— 版本比手机旧，真机大概率连不上"
+        printf '\033[2m  （若手机只是锁屏，解锁即可；解锁后仍失败就必须升级 Xcode）\033[0m\n'
+    else
+        warn "手机当前是锁屏状态（开发者镜像未挂载），编译会照常进行，安装前请解锁"
+    fi
 fi
 
 # ---------- 3. 签名身份与 Team ID ----------
 info "查找 Apple 开发证书…"
-IDENTITY_LINE="$(security find-identity -v -p codesigning 2>/dev/null \
-    | grep -E 'Apple Development|iPhone Developer' | head -1)"
+IDENTITY_LIST="$(security find-identity -v -p codesigning 2>/dev/null \
+    | grep -E 'Apple Development|iPhone Developer')"
+
+# 换到别人的机器上时，钥匙串里可能有好几张开发证书（多个 Apple ID / 多个 Team），
+# 这时用 PF_IDENTITY=邮箱或证书名 指定用哪一张。
+if [ -n "${PF_IDENTITY:-}" ]; then
+    ALL_IDENTITIES="$IDENTITY_LIST"
+    IDENTITY_LIST="$(printf '%s\n' "$IDENTITY_LIST" | grep -iF "$PF_IDENTITY")"
+    if [ -z "$IDENTITY_LIST" ]; then
+        die "没有匹配 PF_IDENTITY 的签名证书" "PF_IDENTITY=${PF_IDENTITY}
+本机现有证书：
+$(printf '%s\n' "$ALL_IDENTITIES" | sed 's/^/  /')"
+    fi
+fi
+
+IDENTITY_LINE="$(printf '%s\n' "$IDENTITY_LIST" | head -1)"
 
 if [ -z "$IDENTITY_LINE" ]; then
-    die "本机没有 Apple 签发的开发证书，无法为 iOS 签名" "在 Xcode 里登录 Apple ID（免费账号即可）：
+    die "本机没有 Apple 签发的开发证书，无法为 iOS 签名" "证书不会跟着项目文件走 —— 换一台 Mac 必须在这台机器上重新登录账号并生成一次：
   1. 打开 Xcode → 菜单 Settings（⌘,）→ Accounts
   2. 点左下角「+」→ 选 Apple ID → 输入账号密码（需要两步验证）
   3. 打开工程，选中 Target → Signing & Capabilities
@@ -201,13 +261,19 @@ team_from_cert() {
 
 TEAM_ID="$(team_from_cert "$IDENTITY_NAME")"
 if [ -z "$TEAM_ID" ]; then
-    TEAM_ID="$(team_from_cert "Apple Development")"
-fi
-if [ -z "$TEAM_ID" ]; then
-    warn "无法从证书解析 Team ID，尝试改用括号内的值"
+    # 退一步用证书名括号里的值。它可能只是 App ID 前缀，但同一张证书里的值
+    # 总比用 "Apple Development" 模糊匹配到另一张证书的 Team 要安全。
+    warn "无法从证书 OU 字段解析 Team ID，改用证书名括号内的值"
     TEAM_ID="$(printf '%s' "$IDENTITY_NAME" | sed -nE 's/.*\(([A-Z0-9]{10})\).*/\1/p')"
 fi
-[ -z "$TEAM_ID" ] && die "无法确定 Team ID" "证书信息：$IDENTITY_LINE"
+
+# 显式指定时以 PF_TEAM 为准（多个 Apple ID / 多个 Team 时用）
+if [ -n "${PF_TEAM:-}" ]; then
+    TEAM_ID="$PF_TEAM"
+fi
+
+[ -z "$TEAM_ID" ] && die "无法确定 Team ID" "证书信息：$IDENTITY_LINE
+可以显式指定：PF_TEAM=<10位TeamID> ./install-to-device.sh"
 
 ok "签名身份：$IDENTITY_NAME"
 ok "Team：$TEAM_ID"

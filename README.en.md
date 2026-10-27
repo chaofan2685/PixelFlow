@@ -52,7 +52,7 @@ The jump toast appears at the top of the page, so it never covers the QR codes. 
 
 ### 2. Receiver · iOS app
 
-Requires macOS with Xcode 16+, iPhone on iOS 17+.
+Requires macOS with Xcode 26+, iPhone on iOS 17+. **Xcode must not be older than the phone’s iOS** — this project is verified on Xcode 27.1 / macOS 27.0.1 / iOS 27.2; see “Building on another Mac” below for older setups.
 
 ```bash
 open PixelFlowReceiver/PixelFlowReceiver.xcodeproj
@@ -82,6 +82,40 @@ iOS blocks the very first launch with “*Untrusted Developer — Your device ma
 This is a one-time step — reinstalling within the 7-day window (renewal) does not require trusting again. If the **Developer App** section is missing, make sure you opened the one under **General**, then replug or reboot the phone so it can validate the certificate online.
 
 > Free Apple ID signatures expire after **7 days** — reconnect to Xcode and press ⌘R again to renew.
+
+**Building on another Mac**
+
+Nothing in the project is tied to this machine, so any macOS + Xcode box can build it — provided the box qualifies:
+
+| | Requirement |
+| --- | --- |
+| Chip | **Apple silicon**. Xcode 27 is Apple-silicon-only; Intel Macs top out at Xcode 26.x |
+| OS | Xcode 27 needs **macOS Tahoe 26.6+**; Xcode 26.0–26.3 needs macOS 15.6+ (26.4+ needs macOS 26.2+) |
+| Xcode | **Must not be older than the phone’s iOS.** iOS 27 phone → Xcode 27; iOS 26 phone → Xcode 26 is fine |
+
+Check the phone under **Settings → General → About → iOS Version**. An Xcode older than the phone’s OS cannot connect to it (“device OS not supported”) — there is no workaround.
+
+Four things to set up — and **don't** copy `build/` over (80 MB of local build artifacts, signed by the previous machine, useless on the new one):
+
+1. **Get the project**: `git clone <url>` if you have a remote; otherwise
+   `rsync -av --exclude build --exclude .git ./ user@newmac.local:~/PixelFlow/`
+2. **Install Xcode and accept the license**
+   ```bash
+   xcode-select --install                       # CLT; the script needs /usr/bin/python3
+   sudo xcode-select -s /Applications/Xcode.app # otherwise xcodebuild refuses to run
+   sudo xcodebuild -license accept              # unaccepted license breaks every build
+   xcodebuild -version
+   ```
+3. **Sign in with the same Apple ID** on that Mac: Xcode → Settings (⌘,) → Accounts → “+”.
+   **Certificates do not travel with the project files** — generate one on this machine by opening the project and pressing **⌘B** once; Xcode then creates the Apple Development certificate and provisioning profile. Developer Mode on the phone is device-level, so it stays on; but the new Mac must be trusted on the phone (“Trust This Computer”).
+4. **Run the script**: `cd PixelFlowReceiver && ./install-to-device.sh` (step 0 verifies Xcode version, license, `xcode-select` target and python3, and tells you exactly what is missing)
+   If the keychain holds several development certificates (multiple Apple IDs), the script takes the first one and may sign for the wrong Team; pin it with `PF_IDENTITY=email PF_TEAM=TeamID ./install-to-device.sh`.
+
+Do I need to trust the app again? A new Mac generates a **new** Apple Development certificate for the same Apple ID. Overwriting the install on the same iPhone usually just works; if “Untrusted Developer” shows up again, tap Trust once more (two identically named entries may appear under **Developer App** — trust both).
+
+To avoid it entirely: on the old Mac open **Keychain Access** → find `Apple Development: your@email` → right-click → **Export** as `.p12` (with a password) → double-click it on the new Mac. Both machines then sign with the same certificate.
+
+If an overwrite install fails with `ApplicationVerificationFailed`, delete the old PixelFlow on the phone first, or unify the certificate as described above. The first device connection on a new Mac downloads the Developer Disk Image, so expect a few extra minutes.
 
 **After the transfer completes**
 

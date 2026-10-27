@@ -53,7 +53,7 @@ PixelFlow/
 
 ### 2. 接收端 · iOS App
 
-需要 macOS + Xcode 26 以上，iPhone 系统 iOS 17+。
+需要 macOS + Xcode 26 以上，iPhone 系统 iOS 17+。**Xcode 版本不能低于手机的 iOS 版本**——本项目在 Xcode 27.1 / macOS 27.0.1 / iOS 27.2 上验证，低于这个组合的机器见下面的「换一台 Mac 编译安装」。
 
 **前置条件**（这两步必须在手机和账号侧完成，命令行无法代劳）
 
@@ -92,6 +92,40 @@ open PixelFlowReceiver/PixelFlowReceiver.xcodeproj
 4. 首次运行后，在 iPhone **设置 → 通用 → VPN与设备管理** 里信任你的开发者证书
 
 > 免费 Apple ID 签名的 App **7 天后过期**，到期后重新运行安装脚本（或按一次 ⌘R）即可续期。
+
+**换一台 Mac 编译安装**
+
+代码里没有绑死本机路径，任何 macOS + Xcode 机器都能编。但要先确认新机器够格：
+
+| 项目 | 要求 |
+| --- | --- |
+| 芯片 | **Apple silicon**。Xcode 27 起只支持 Apple silicon；Intel Mac 最高装到 Xcode 26.x |
+| 系统 | 装 Xcode 27 需要 **macOS Tahoe 26.6+**；只装 Xcode 26.0–26.3 需要 macOS 15.6+（26.4 起要求 macOS 26.2+） |
+| Xcode | **不能低于手机系统**。手机是 iOS 27 就必须 Xcode 27；手机还是 iOS 26，Xcode 26 也能用 |
+
+手机版本在「设置 → 通用 → 关于本机 → iOS 版本」看。Xcode 版本比手机旧时，真机会连不上（提示设备系统不受支持），这一步没法绕。
+
+新机器只需补齐四件事，**不要**直接搬 `build/`（80 MB 的本机编译产物，里面是上一台机器的签名结果，搬过去也用不上）。
+
+1. **拷项目**：有远端就 `git clone <url>`；没有就在旧机器上
+   `rsync -av --exclude build --exclude .git ./ 用户名@新Mac.local:~/PixelFlow/`
+2. **装 Xcode 并接受许可**
+   ```bash
+   xcode-select --install                       # 命令行工具，脚本依赖 /usr/bin/python3
+   sudo xcode-select -s /Applications/Xcode.app # 不指向 Xcode.app，xcodebuild 会直接报错
+   sudo xcodebuild -license accept              # 新装 Xcode 未接受许可时任何构建都会失败
+   xcodebuild -version                          # 能打印版本号即可
+   ```
+3. **在这台 Mac 上登录同一个 Apple ID**：Xcode → Settings（⌘,）→ Accounts → 「+」→ Apple ID。
+   **证书不跟着项目文件走**，必须在这台机器上生成一次：打开工程按一次 **⌘B**，Xcode 会自动申请 Apple Development 证书和描述文件。手机侧的「开发者模式」是设备级的，不用重开；但新 Mac 第一次插线时，手机上要允许「信任此电脑」。
+4. **跑脚本**：`cd PixelFlowReceiver && ./install-to-device.sh`（第 0 步会自检 Xcode 版本、许可、`xcode-select` 路径和 python3，缺什么直接告诉你）
+   钥匙串里有多张开发证书（多个 Apple ID）时，脚本默认取第一张，可能签成别人的 Team；用 `PF_IDENTITY=邮箱 PF_TEAM=TeamID ./install-to-device.sh` 明确指定。
+
+签名证书换新了要不要重新信任？同一 Apple ID 在新 Mac 上会生成一张**新的** Apple Development 证书。同一台 iPhone 覆盖安装一般能直接打开；若又弹「不受信任的开发者」，再点一次「信任」即可（「开发者 App」里可能出现同名两项，都信任即可）。
+
+想彻底避免：在旧 Mac 上打开「钥匙串访问」→ 找到 `Apple Development: 你的邮箱` → 右键「导出」存成 `.p12`（设置密码）→ 拷到新 Mac 双击导入，两台机器就用同一张证书签名了。
+
+覆盖安装报 `ApplicationVerificationFailed` 时，先在手机上删掉旧 PixelFlow 再装，或按上面的方式统一证书。新 Mac 首次连真机需要联网下载 Developer Disk Image，会多等几分钟，属正常。
 
 **遇到 `SwiftUIMacros.StateMacro ... produced malformed response`**
 
